@@ -2,46 +2,134 @@
 title: Routing
 ---
 
+import { Callout } from 'nextra/components'
+
 # Routing
 
-Morphis routes are registered through decorators and map directly to controller methods or endpoint handlers.
+Every server in Morphis has a **routes file** in `src/routes/` that acts as the single entry point for requests. For the default `api` server that file is `src/routes/api.ts`.
 
-## HTTP decorators
+```ts filename="src/routes/api.ts"
+import { Cors, Get, Logger, Router, Track } from 'morphis';
+import postController from '../controllers/PostController';
 
-- `@Get(path?)`
-- `@Post(path?)`
-- `@Put(path?)`
-- `@Delete(path?)`
-- `@Patch(path?)`
-- `@Controller(basePath)`
+const router = new Router();
 
-## Example
+// ── Inline handler ───────────────────────────────────────────────────────────
+router.get(() => ({ message: 'OK' }), [Get('/')]);
+
+// ── Controller resources ─────────────────────────────────────────────────────
+router.resources(postController);
+
+// ── Global middleware ────────────────────────────────────────────────────────
+router.use([
+    Logger,
+    Track,
+    Cors({ origins: '*' }),
+]);
+
+export default router;
+```
+
+<Callout type="info">
+  The `router` instance is passed to `Bun.serve({ fetch: router.handle.bind(router) })` at build time. You never write that boilerplate — it is injected by `morphis build`.
+</Callout>
+
+## Binding controller methods
+
+Use `router.get` / `router.post` / `router.put` / `router.delete` / `router.patch` to register a single controller method. The path and HTTP verb are read from the `@Get` / `@Post` / … decorator attached to that method:
 
 ```ts
-import { Controller, Get, Post } from 'morphis'
+// registers GET /posts/:id → postController.get
+router.get(postController.get);
+
+// registers POST /posts → postController.create
+router.post(postController.create);
+```
+
+You can also pass an inline anonymous handler together with an explicit method middleware:
+
+```ts
+router.get(() => ({ ok: true }), [Get('/health')]);
+```
+
+## `router.resources(instance)`
+
+For a controller that follows the standard CRUD naming convention, pass the instance once and all five routes are registered automatically:
+
+```ts
+router.resources(postController);
+```
+
+| Method | Path | Controller method |
+|--------|------|-------------------|
+| GET | `/posts` | `list` |
+| GET | `/posts/:id` | `get` |
+| POST | `/posts` | `create` |
+| PUT | `/posts/:id` | `update` |
+| DELETE | `/posts/:id` | `delete` |
+
+The base path is derived from the `@Controller` decorator on the class (e.g. `@Controller('/posts')`). Any method that does not exist on the instance is silently skipped, so you can implement only the verbs you need.
+
+## `router.use()` — global middleware
+
+`router.use()` registers middleware that wraps **every** request handled by the router. Pass a single instance or an array:
+
+```ts
+router.use([
+    Logger,        // log request & response
+    Track,         // attach trace-id header
+    Cors({ origins: '*' }),   // add CORS headers / handle preflight
+    Connect('default'),       // resolve a DB connection for every request
+]);
+```
+
+Middlewares run in the order they are added (outermost first), so `Logger` receives the raw request before `Track`, and so on.
+
+<Callout type="tip">
+  Register global middleware **after** all route declarations so the order in the file reads top-to-bottom: routes first, cross-cutting concerns last.
+</Callout>
+
+## HTTP decorators (controller side)
+
+Decorators are placed on controller methods to declare their path and verb. The router reads this metadata when you call `router.get(instance.method)` or `router.resources(instance)`.
+
+| Decorator | Verb |
+|-----------|------|
+| `@Get(path)` | GET |
+| `@Post(path)` | POST |
+| `@Put(path)` | PUT |
+| `@Delete(path)` | DELETE |
+| `@Patch(path)` | PATCH |
+| `@Controller(basePath)` | (sets base for all methods) |
+
+```ts
+import { Controller, Get, Post, Put, Delete } from 'morphis';
 
 @Controller('/posts')
 export class PostController {
   @Get('/')
-  index() {
-    return { data: [] }
-  }
+  list() { return [] }
+
+  @Get('/:id')
+  get() { return {} }
 
   @Post('/')
-  store() {
-    return { created: true }
-  }
+  create() { return { created: true } }
+
+  @Put('/:id')
+  update() { return { updated: true } }
+
+  @Delete('/:id')
+  delete() { return { deleted: true } }
 }
 ```
 
 ## Route inspection
 
-Use the CLI to verify what is registered:
+List all registered routes and their middleware at any time:
 
 ```bash
 morphis route:list --server=api --format=table
 ```
 
-## Result
-
-Each route carries its HTTP method, resolved path, action name, and optional validation metadata.
+Each row shows the HTTP method, resolved path, action name (`controller.method`), and any validation or transform middleware attached to the route.

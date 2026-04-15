@@ -1,0 +1,160 @@
+---
+title: Microservices
+---
+
+import { Steps, Callout, FileTree } from 'nextra/components'
+
+# Microservices
+
+Morphis treats each **server** as an independent, tree-shaken unit. Running `morphis build --server=api` bundles only the code reachable from `src/routes/api.ts` and writes a single self-contained file to `dist/api/index.js`.
+
+This means you can maintain multiple servers in one repo (e.g. `api`, `ws`, `jobs`) and build/deploy each one independently with zero overlap.
+
+## The default server
+
+When you scaffold a new project, Morphis creates the `api` server automatically:
+
+<FileTree>
+  <FileTree.File name=".env.api" />
+  <FileTree.Folder name="src">
+    <FileTree.Folder name="routes">
+      <FileTree.File name="api.ts" />
+    </FileTree.Folder>
+  </FileTree.Folder>
+</FileTree>
+
+```ini filename=".env.api"
+NAME=api
+PORT=3000
+MULTI_THREAD=true
+```
+
+The `package.json` scripts are also wired up from the start:
+
+```json filename="package.json (scripts)"
+{
+  "dev:api":   "morphis dev --server=api",
+  "build:api": "morphis build --server=api",
+  "start:api": "morphis start --server=api"
+}
+```
+
+## Adding a new server
+
+Use `morphis new:server` to create any additional server:
+
+```bash
+morphis new:server ws
+```
+
+Morphis will:
+
+1. Create `src/routes/ws.ts` with a minimal health-check route.
+2. Create `.env.ws` with a unique `PORT` (auto-incremented so it does not clash with existing servers).
+3. Inject `dev:ws`, `build:ws`, and `start:ws` into `package.json`.
+
+<Callout type="info">
+  Server names may only contain letters, numbers, hyphens, and underscores.
+</Callout>
+
+The generated route file is a clean starting point:
+
+```ts filename="src/routes/ws.ts"
+import { Get, Router } from 'morphis';
+
+const router = new Router();
+
+router.get(() => ({ message: 'OK' }), [Get('/')]);
+
+export default router;
+```
+
+### Example: a WebSocket server
+
+Replace the scaffold with your own logic while keeping the same `export default router` contract:
+
+```ts filename="src/routes/ws.ts"
+import { Get, Router } from 'morphis';
+
+const router = new Router();
+
+router.get(() => ({ ok: true }), [Get('/health')]);
+
+// Additional WebSocket upgrade logic via your preferred adapter
+export default router;
+```
+
+## Building a server
+
+```bash
+morphis build --server=api
+```
+
+Morphis bundles `src/routes/api.ts` (and every module it imports) into a single optimised file:
+
+```
+dist/
+  api/
+    index.js   ← production bundle
+```
+
+The entry that gets bundled looks like this internally:
+
+```ts
+import router from './api';
+const port = Number(process.env.PORT ?? 3000);
+Bun.serve({
+    port,
+    reusePort: process.env.MULTI_THREAD === 'true',
+    fetch: router.handle.bind(router),
+});
+```
+
+You never have to write that boilerplate yourself — it is injected at build time and removed afterwards.
+
+### Per-server builds
+
+Each server produces its own isolated bundle. Code that is only imported by `ws.ts` will **never** appear in `dist/api/index.js`, and vice versa.
+
+```bash
+morphis build --server=api   # → dist/api/index.js
+morphis build --server=ws    # → dist/ws/index.js
+```
+
+<Callout type="tip">
+  Use `morphis build:api` / `morphis build:ws` (the generated npm scripts) as shortcuts.
+</Callout>
+
+## Running in production
+
+```bash
+# Start api server (reads from .env.api)
+morphis start --server=api
+
+# Or run the bundle directly
+bun dist/api/index.js
+```
+
+## Project layout with multiple servers
+
+<FileTree>
+  <FileTree.File name=".env.api" />
+  <FileTree.File name=".env.ws" />
+  <FileTree.Folder name="src">
+    <FileTree.Folder name="routes">
+      <FileTree.File name="api.ts" />
+      <FileTree.File name="ws.ts" />
+    </FileTree.Folder>
+    <FileTree.Folder name="controllers" />
+    <FileTree.Folder name="models" />
+    <FileTree.Folder name="services" />
+  </FileTree.Folder>
+  <FileTree.Folder name="dist">
+    <FileTree.Folder name="api">
+      <FileTree.File name="index.js" />
+    </FileTree.Folder>
+    <FileTree.Folder name="ws">
+      <FileTree.File name="index.js" />
+    </FileTree.Folder>
+  </FileTree.Folder>
+</FileTree>
