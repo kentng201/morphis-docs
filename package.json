@@ -7,6 +7,7 @@
     "scripts": {
         "dev": "next dev --turbopack",
         "build": "next build",
+        "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind",
         "start": "next start",
         "typecheck": "tsc --noEmit"
     },
@@ -21,6 +22,7 @@
         "@types/node": "^24.7.2",
         "@types/react": "^19.1.17",
         "@types/react-dom": "^19.1.9",
+        "pagefind": "^1.5.2",
         "typescript": "^5.9.3"
     },
     "keywords": [
