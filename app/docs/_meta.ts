@@ -1,4 +1,8 @@
 export default {
+    index: {
+        title: 'Documentation',
+        display: 'hidden'
+    },
     'getting-started': {
         title: 'Getting Started'
     },
