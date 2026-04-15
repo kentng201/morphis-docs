@@ -118,13 +118,84 @@ pre {
   box-shadow: var(--morphis-shadow);
 }
 
-.nextra-code > div + pre {
+.morphis-code-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.morphis-code-toolbar--header {
+  border-color: var(--morphis-border);
+}
+
+.morphis-code-toolbar--floating {
+  position: absolute;
+  top: 0.85rem;
+  right: 1rem;
+  z-index: 1;
+}
+
+.morphis-copy-button {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--morphis-border);
+  background: rgba(246, 246, 244, 0.84);
+  padding: 0.45rem 0.8rem;
+  color: var(--morphis-bark);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+  backdrop-filter: blur(12px);
+}
+
+.morphis-copy-button:hover {
+  border-color: rgba(94, 75, 59, 0.34);
+  background: rgba(246, 246, 244, 0.96);
+  color: var(--morphis-ink);
+}
+
+.morphis-copy-button:focus-visible {
+  outline: 2px solid var(--x-color-primary-600);
+  outline-offset: 2px;
+}
+
+.morphis-copy-button:active {
+  transform: translateY(1px);
+}
+
+.morphis-copy-button__icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
+}
+
+.dark .morphis-copy-button {
+  background: rgba(46, 37, 30, 0.9);
+  color: #efe7dc;
+}
+
+.dark .morphis-copy-button:hover {
+  border-color: rgba(211, 181, 141, 0.32);
+  background: rgba(69, 55, 43, 0.96);
+  color: #f6f1e8;
+}
+
+.nextra-code > .morphis-code-toolbar--header + pre {
   border: 0;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
 
-.dark .nextra-code > div:first-child {
+.dark .nextra-code > .morphis-code-toolbar--header:first-child {
   border-bottom: 1px solid rgba(211, 181, 141, 0.18);
 }
 
