@@ -152,8 +152,8 @@ export default function HomePage() {
             </section>
 
             <footer className="landing-footer">
-                <span>v1.0.0 stable</span>
-                <span>morphis.runtime.bun</span>
+                <span>v0.6.3</span>
+                <span></span>
                 <Link href="/docs/getting-started">Open the installation guide</Link>
             </footer>
         </main>
