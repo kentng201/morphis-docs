@@ -4,6 +4,31 @@ title: Getting Started
 
 # Getting Started
 
+## Quick install
+
+If you want the shortest path to a running Morphis backend, use the published CLI first:
+
+```bash
+# Install Morphis globally
+bun i morphis -g
+
+# Scaffold a new backend
+morphis new my-backend
+
+# Enter the project folder
+cd my-backend
+
+# Install project dependencies
+bun install
+
+# Start local development
+bun dev
+```
+
+Open `http://localhost:3000` after `bun dev` starts.
+
+If you are developing against the Morphis framework source in the same workspace, keep reading for the local clone and `bun link` workflow.
+
 ## Requirements
 
 - Bun installed locally
