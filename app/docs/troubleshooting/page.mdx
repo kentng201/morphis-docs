@@ -9,11 +9,53 @@ title: Troubleshooting
 ### Validation did not catch a missing field
 Make sure the field uses the `Required` rule.
 
+Reference page: [Validation](/docs/http/validation)
+
+### My browser says CORS is rejected
+This usually means the route is responding without the `Cors` middleware, so the browser never sees `Access-Control-Allow-Origin` or the preflight `OPTIONS` response it expects.
+
+Add `Cors(...)` to your router middleware stack.
+
+```ts
+import { Cors, Logger, Router, Track } from 'morphis'
+
+const router = new Router()
+
+router.use([
+	Logger,
+	Track,
+	Cors({ origins: '*' }),
+])
+```
+
+If you only want to allow specific frontends, replace `'*'` with an allow-list.
+
+```ts
+router.use([
+	Cors({
+		origins: ['http://localhost:3000', 'https://app.example.com'],
+	}),
+])
+```
+
+Quick checks:
+
+- make sure `Cors(...)` is actually registered on the router that serves the endpoint
+- make sure the frontend origin is included in `origins` when you are not using `'*'`
+- make sure the browser preflight `OPTIONS` request reaches Morphis and is not blocked upstream by a proxy or platform config
+- if your API uses custom headers like `Authorization`, keep them allowed in the CORS config
+
+Reference page: [Middleware](/docs/http/middleware)
+
 ### The server name is rejected
 Check that your project has the matching environment file, such as `.env.api`.
 
+Reference page: [Environment Variables](/docs/http/environment-variables)
+
 ### D1 works remotely but not locally
 Confirm the connection includes a local storage fallback or binding setup for your runtime.
+
+Reference page: [Cloudflare D1 deployment](/docs/database/connections#cloudflare-d1-deployment)
 
 ### Route output is unclear
 Run the route inspector again with JSON or OpenAPI output.
@@ -21,3 +63,5 @@ Run the route inspector again with JSON or OpenAPI output.
 ```bash
 morphis route:list --server=api --format=json
 ```
+
+Reference page: [API Testing](/docs/http/openapi)
