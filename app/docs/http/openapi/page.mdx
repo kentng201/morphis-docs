@@ -1,30 +1,196 @@
 ---
-title: OpenAPI
+title: API Testing
 ---
 
-# OpenAPI
+import { Steps, Callout } from 'nextra/components'
 
-Morphis can expose route metadata in OpenAPI-compatible output through the route listing command.
+# API Testing
 
-## Generate OpenAPI JSON
+Morphis ships two complementary tools for testing your API locally:
+
+- **`morphis route:list`** — a CLI command that prints every registered route, its HTTP verb, action name, and attached middleware
+- **`morphis-scalar`** — a standalone preview server that reads your OpenAPI document and serves an interactive Scalar UI where you can call endpoints directly from the browser
+
+---
+
+## Inspect routes in the terminal
+
+Run `route:list` at any time without starting the dev server:
 
 ```bash
-morphis route:list --server=api --format=openapi
-```
-
-## Other formats
-
-```bash
-morphis route:list --server=api --format=json
 morphis route:list --server=api --format=table
 ```
 
-## Scalar integration
+Example output for the `my-backend` project with a `PostController`:
 
-For interactive API previews, pair the generated OpenAPI output with the separate Scalar-based tooling in the Morphis ecosystem.
+```
+Domain | Method | Endpoint   | Action                | Middleware
+-------+--------+------------+-----------------------+---------------------------------------------------
+api    | GET    | /          | <anonymous>           | LoggerMiddleware, TrackMiddleware, CorsMiddleware
+api    | GET    | /posts     | postController.list   | LoggerMiddleware, TrackMiddleware, CorsMiddleware
+api    | GET    | /posts/:id | postController.get    | LoggerMiddleware, TrackMiddleware, CorsMiddleware
+api    | POST   | /posts     | postController.create | LoggerMiddleware, TrackMiddleware, CorsMiddleware
+api    | PUT    | /posts/:id | postController.update | LoggerMiddleware, TrackMiddleware, CorsMiddleware
+api    | DELETE | /posts/:id | postController.delete | LoggerMiddleware, TrackMiddleware, CorsMiddleware
+```
 
-## Good use cases
+Other available formats:
 
-- internal API docs
-- contract review during development
-- sharing endpoint structure with frontend or integration teams
+```bash
+morphis route:list --server=api --format=json      # machine-readable JSON
+morphis route:list --server=api --format=openapi   # full OpenAPI 3.1 document
+```
+
+---
+
+## Interactive preview with morphis-scalar
+
+`morphis-scalar` is a separate package that keeps API preview tooling outside the Morphis runtime. Pull it once alongside your project:
+
+<Steps>
+
+### Clone the preview tool
+
+Keep `morphis-scalar` as a sibling of your project folder:
+
+```bash
+git clone https://github.com/kentng201/morphis-scalar
+cd morphis-scalar
+bun install
+```
+
+Your workspace layout should look like this:
+
+```
+/
+├── morphis-scalar/
+└── my-backend/
+    ├── src/
+    │   └── routes/
+    │       └── api.ts
+    └── .env.api
+```
+
+### Create a Morphis project
+
+If you do not already have a project, scaffold one:
+
+```bash
+morphis new my-backend
+cd my-backend
+bun install
+```
+
+### Start the preview server
+
+From the `morphis-scalar` directory, point the preview at your project:
+
+```bash
+cd ../morphis-scalar
+bun run preview --project=../my-backend --server=api --open
+```
+
+`--open` opens the browser automatically. The preview server starts on `http://127.0.0.1:4173` by default.
+
+<Callout type="tip">
+  Add `--watch` to auto-reload the OpenAPI document whenever you change a route or validator.
+</Callout>
+
+### Browse the Scalar UI
+
+Once running, the preview looks like this:
+
+![Scalar preview showing my-backend API with Post routes in the sidebar](/images/scalar-preview.png)
+
+The left sidebar lists every tag (`api`, `Post`) and every endpoint under it. The main panel shows the server URL, API version, and ready-to-use client library snippets (Shell, Ruby, Node.js, PHP, Python, and more).
+
+</Steps>
+
+---
+
+## Trying an endpoint
+
+### 1 — Expand an endpoint
+
+Click any route in the sidebar to navigate to its detail view. Scalar renders the full schema directly from your `@Validate` decorators. Take `POST /posts` as an example:
+
+```ts filename="src/validators/PostBodyValidator.ts"
+import { Validator, type SimpleValidationRuleMap } from 'morphis';
+
+export type PostBody = { title: string; body: string; status: string };
+
+export class PostBodyValidator extends Validator<PostBody> {
+    getSimpleRules(): SimpleValidationRuleMap<PostBody> {
+        const { Required, Length, In } = this.rules;
+        return {
+            title:  [Required, Length(255)],
+            body:   [Required, Length(10000)],
+            status: [Required, In('draft', 'published', 'archived')],
+        };
+    }
+}
+```
+
+```ts filename="src/controllers/PostController.ts"
+import { Controller, type Request, Post, Validate } from 'morphis';
+import { PostBodyValidator } from '../validators/PostBodyValidator';
+
+@Controller('posts')
+export class PostController {
+    @Post()
+    @Validate({ body: PostBodyValidator })
+    async create(req: Request) {
+        return req.body;
+    }
+}
+
+export default new PostController();
+```
+
+Scalar turns each rule into its OpenAPI equivalent automatically — no separate schema file needed:
+
+| Validator rule | OpenAPI output |
+|---|---|
+| `Required` | `required: true` |
+| `Length(255)` | `maxLength: 255` |
+| `In('draft', 'published', 'archived')` | `enum: [draft, published, archived]` |
+
+The result in the UI:
+
+![Scalar endpoint detail for POST /posts showing body, status enum (draft/published/archived), and title fields all marked required — with a curl snippet and Test Request button](/images/scalar-try-it-out.png)
+
+- **`body`** — string · max 10 000 · required
+- **`status`** — string · enum (`draft` / `published` / `archived`) · required
+- **`title`** — string · max 255 · required
+- **Curl snippet** — pre-filled with the current body shape so you can copy and run it immediately
+- **Test Request** button — opens the interactive sending panel
+
+### 2 — Send a request
+
+Click **Test Request** to open the interactive panel. The form is pre-populated with all required fields and the first enum value as the default:
+
+![Scalar Test Request panel for POST /posts showing auto-populated body, status (defaulting to "draft"), and title fields](/images/scalar-usage.png)
+
+- **Headers** — `accept: */*` and `content-type: application/json` are pre-filled automatically
+- **Request Body** — a live JSON editor pre-populated with `body`, `status: "draft"`, and `title`
+- **Send** — fires the request against `http://localhost:3000` and streams the response on the right
+
+<Callout type="info">
+  Anything declared with `Required` in your validator will appear in the request body scaffold. `In(...)` values are recognised as enums and the first option is used as the default.
+</Callout>
+
+---
+
+## Preview flags reference
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--project=<dir>` | — | Morphis project directory to run `route:list` in |
+| `--server=<name>` | — | Server name (matches `src/routes/<name>.ts`) |
+| `--input=<file>` | — | Load OpenAPI JSON from a file instead |
+| `--host=<host>` | `127.0.0.1` | Preview server host |
+| `--port=<port>` | `4173` | Preview server port |
+| `--open` | false | Open browser on start |
+| `--watch` | false | Reload when source changes |
+| `--title=<title>` | server name | Override OpenAPI `info.title` |
+| `--version=<ver>` | `1.0.0` | Override OpenAPI `info.version` |

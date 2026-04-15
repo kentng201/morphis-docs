@@ -23,6 +23,9 @@ export default {
     deployment: {
         title: 'Deployment'
     },
+    'environment-variables': {
+        title: 'Environment Variables'
+    },
     'api-reference': {
         title: 'API Reference'
     },

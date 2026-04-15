@@ -1,0 +1,79 @@
+---
+title: Environment Variables
+---
+
+import { Callout } from 'nextra/components'
+
+# Environment Variables
+
+Each Morphis server reads its configuration from a dedicated `.env.<server>` file at project root.
+This keeps per-server settings (port, name, thread count, database credentials) isolated and explicit.
+
+## Default file
+
+When you create a project, `.env.api` is generated automatically:
+
+```ini filename=".env.api"
+NAME=api
+PORT=3000
+MULTI_THREAD=true
+```
+
+When you add a new server with `morphis new:server ws`, a second file is created with the next available port:
+
+```ini filename=".env.ws"
+NAME=ws
+PORT=3001
+MULTI_THREAD=true
+```
+
+## Built-in variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NAME` | (server name) | Identifies the server in logs and traces |
+| `PORT` | `3000` | Port the HTTP server listens on |
+| `MULTI_THREAD` | `true` | Set to `true` to enable `reusePort` across worker threads |
+
+## Database variables
+
+When you configure a database connection, additional variables are added to the env file:
+
+```ini filename=".env.api (with SQLite)"
+NAME=api
+PORT=3000
+MULTI_THREAD=true
+DB_STORAGE=./database.sqlite
+```
+
+## Custom variables
+
+Add any application-specific variables directly to the env file:
+
+```ini filename=".env.api"
+NAME=api
+PORT=3000
+MULTI_THREAD=true
+
+JWT_SECRET=change-me-in-production
+API_KEY=your-key-here
+```
+
+Access them in code via `process.env`:
+
+```ts
+const secret = process.env.JWT_SECRET;
+```
+
+<Callout type="warning">
+  Never commit secrets to source control. Add `.env.*` to your `.gitignore`.
+</Callout>
+
+## Loading order
+
+Morphis loads the env file that matches the `--server` flag passed to `morphis dev`, `morphis build`, or `morphis start`. No extra configuration is needed — the CLI resolves the file path automatically.
+
+```bash
+morphis dev --server=api    # loads .env.api
+morphis dev --server=ws     # loads .env.ws
+```
