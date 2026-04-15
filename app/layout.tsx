@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { Footer, Layout, Navbar } from 'nextra-theme-docs'
 import { Banner, Head } from 'nextra/components'
 import { getPageMap } from 'nextra/page-map'
-import './globals.css'
 import 'nextra-theme-docs/style.css'
+import './globals.css'
 
 export const metadata: Metadata = {
     title: {
@@ -35,7 +35,17 @@ export default async function RootLayout({
 }>) {
     return (
         <html lang="en" dir="ltr" suppressHydrationWarning>
-            <Head>
+            <Head
+                color={{
+                    hue: { light: 34, dark: 34 },
+                    saturation: { light: 25, dark: 42 },
+                    lightness: { light: 44, dark: 68 }
+                }}
+                backgroundColor={{
+                    light: '#f6f6f4',
+                    dark: '#2e251e'
+                }}
+            >
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             </Head>
             <body>
