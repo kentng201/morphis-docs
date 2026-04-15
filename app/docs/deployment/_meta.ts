@@ -1,5 +1,5 @@
 export default {
-    overview: { title: 'Overview' },
+    linux: { title: 'Linux Server' },
     aws: { title: 'AWS' },
     gcloud: { title: 'Google Cloud' },
     cloudflare: { title: 'Cloudflare' }

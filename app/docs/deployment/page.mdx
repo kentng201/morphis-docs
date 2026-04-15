@@ -1,21 +1,51 @@
 ---
-title: Deployment
+title: Overview
 ---
 
-# Deployment
+# Overview
 
-Morphis supports local builds as well as cloud deployment targets through the CLI.
+Morphis separates deployment into two different concerns.
 
-## Jump to a target
+## 1. Server deploy
 
-- [Overview](/docs/deployment/overview)
+Use this mode when you control the machine yourself.
+
+- Typical target: Linux VM, VPS, or dedicated server.
+- Runtime model: build once, then run `morphis start` as a long-lived process.
+- Recommended operational layer: `systemd`, a reverse proxy such as Nginx, and your own logging and monitoring.
+
+Start here: [Linux Server](/docs/deployment/linux)
+
+## 2. Serverless deploys
+
+Use this mode when you want Morphis to package your server as a Docker image and push it to a managed platform.
+
+| Target | Platform model | Docker under the hood | Notes |
+| --- | --- | --- | --- |
+| AWS | Lambda container image | Yes | Builds a Linux amd64 image, adds the Lambda Web Adapter, pushes to ECR, then updates or creates a Lambda function. |
+| Google Cloud | Cloud Run | Yes | Builds a Linux amd64 image, pushes to Artifact Registry, then deploys a Cloud Run service. |
+| Cloudflare | Containers + Workers | Yes | Uses Wrangler and Cloudflare Containers, with a Worker entrypoint and Durable Object routing layer. |
+
+## Common command
+
+```bash
+morphis deploy --server=api --target=aws
+```
+
+Change the `--target` value to `gcloud` or `cloudflare` for the other managed targets.
+
+## Deployment targets
+
 - [AWS](/docs/deployment/aws)
 - [Google Cloud](/docs/deployment/gcloud)
 - [Cloudflare](/docs/deployment/cloudflare)
+- [Linux Server](/docs/deployment/linux)
 
-## Local production flow
+## Which one should you pick?
 
-```bash
-morphis build --server=api
-morphis start --server=api
-```
+- Choose a server deploy when you want the simplest operational model and full control over the host.
+- Choose AWS when you want a container-based Lambda workflow and you are already using the AWS ecosystem.
+- Choose Google Cloud when Cloud Run is your preferred serverless container platform.
+- Choose Cloudflare when you want to run behind Workers and optionally attach Cloudflare-native services such as D1.
+
+You can pair each deployment mode with environment-aware files and run migrations before deployment when needed.

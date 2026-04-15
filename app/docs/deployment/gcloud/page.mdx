@@ -4,10 +4,32 @@ title: Google Cloud Deployment
 
 # Google Cloud Deployment
 
-Morphis can prepare and publish builds for Google Cloud workflows.
+The Google Cloud target deploys your Morphis server to Cloud Run as a container image.
 
 ```bash
 morphis deploy --server=api --target=gcloud
 ```
 
-Make sure your gcloud configuration and artifact settings are available in the deployment environment.
+## What the CLI does under the hood
+
+When you run the Google Cloud target, Morphis:
+
+1. Builds a Linux amd64 Docker image.
+2. Configures Docker authentication for Artifact Registry.
+3. Pushes the image to Artifact Registry.
+4. Deploys or updates a Cloud Run service.
+
+This is a serverless container deploy, not a traditional long-running VM deploy.
+
+## Required prerequisites
+
+- Docker installed and running.
+- Google Cloud CLI authenticated.
+- A Google Cloud project ID available through `--gcp-project=<id>` or `GCLOUD_PROJECT`.
+- Permission to push to Artifact Registry and deploy Cloud Run services.
+
+## Example command
+
+```bash
+morphis deploy --server=api --target=gcloud --gcp-project=my-project --service=my-api
+```

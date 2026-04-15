@@ -4,10 +4,110 @@ title: AWS Deployment
 
 # AWS Deployment
 
-Use the deploy command with the AWS target when packaging your Morphis server for AWS workflows.
+The AWS target deploys your Morphis server as a Lambda container image.
 
 ```bash
 morphis deploy --server=api --target=aws
 ```
 
-Check your AWS credentials and region before deployment.
+## What the CLI does under the hood
+
+When you run the AWS target, Morphis:
+
+1. Builds a Linux amd64 Docker image.
+2. Adds the AWS Lambda Web Adapter to the image.
+3. Logs in to Amazon ECR and pushes the image.
+4. Creates or updates an AWS Lambda function that uses that container image.
+
+This means the AWS flow is a serverless deploy, but it is still Docker-based under the hood.
+
+## AWS services involved
+
+- AWS Lambda runs your Morphis app.
+- Amazon ECR stores the container image built by the CLI.
+- IAM provides the execution role used by the Lambda function.
+- Amazon API Gateway is the usual way to expose the Lambda as a public HTTP API.
+
+Read more in the official docs:
+
+- [AWS Lambda](https://docs.aws.amazon.com/lambda/latest/dg/welcome.html)
+- [Amazon API Gateway](https://docs.aws.amazon.com/apigateway/latest/developerguide/welcome.html)
+
+## Required local prerequisites
+
+- Docker installed and running.
+- AWS CLI installed and authenticated.
+- An AWS region configured, or passed with `--region=<region>`.
+- A Lambda execution role ARN, or a role named `lambda-execution-role` already present in your account.
+
+## IAM permissions for the identity running `morphis deploy`
+
+At minimum, the AWS identity used locally should be able to:
+
+- Resolve the current account: `sts:GetCallerIdentity`
+- Authenticate Docker against ECR: `ecr:GetAuthorizationToken`
+- Create or reuse the repository: `ecr:CreateRepository`
+- Push image layers and manifests: `ecr:BatchCheckLayerAvailability`, `ecr:InitiateLayerUpload`, `ecr:UploadLayerPart`, `ecr:CompleteLayerUpload`, `ecr:PutImage`
+- Inspect tags when Morphis calculates the next version automatically: `ecr:ListImages`
+- Read and update the Lambda function: `lambda:GetFunction`, `lambda:UpdateFunctionCode`
+- Create the Lambda function on first deploy: `lambda:CreateFunction`
+- Pass the execution role to Lambda: `iam:PassRole`
+- Download the Lambda Web Adapter during Docker build: `ecr-public:GetAuthorizationToken`
+
+## Lambda execution role requirements
+
+The Lambda execution role must trust the Lambda service and include the permissions your app needs at runtime.
+
+The trust relationship should allow `lambda.amazonaws.com` to assume the role:
+
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Principal": {
+				"Service": "lambda.amazonaws.com"
+			},
+			"Action": "sts:AssumeRole"
+		}
+	]
+}
+```
+
+For most apps you should also attach the standard CloudWatch logging policy, and then add any extra access your own services require, such as RDS, S3, Secrets Manager, or VPC networking.
+
+## ECR repository policy for Lambda image pulls
+
+Lambda must be able to pull the image from ECR after Morphis pushes it. A minimal repository policy looks like this:
+
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "LambdaECRAccess",
+			"Effect": "Allow",
+			"Principal": {
+				"Service": "lambda.amazonaws.com"
+			},
+			"Action": [
+				"ecr:BatchGetImage",
+				"ecr:GetDownloadUrlForLayer"
+			]
+		}
+	]
+}
+```
+
+Without that policy, Lambda may fail to fetch the image even if the push itself succeeds.
+
+## API Gateway note
+
+Morphis deploys the Lambda function, but it does not create an API Gateway for you. If you want a public HTTP endpoint, create an API Gateway integration that points at the deployed Lambda function.
+
+## Example command
+
+```bash
+morphis deploy --server=api --target=aws --region=ap-southeast-1 --function=my-api
+```

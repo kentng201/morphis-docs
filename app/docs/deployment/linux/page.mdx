@@ -1,0 +1,65 @@
+---
+title: Linux Server Deployment
+---
+
+# Linux Server Deployment
+
+Use this path when you want Morphis to run as a normal server process on your own Linux machine instead of handing the runtime off to a serverless platform.
+
+## When to use this mode
+
+- You have a VPS, VM, or dedicated Linux server.
+- You want full control over process management, networking, and scaling.
+- You do not want the Docker-based serverless deployment flow used by `morphis deploy`.
+
+## Basic production flow
+
+```bash
+bun install
+morphis build --server=api
+morphis start --server=api
+```
+
+This assumes your production env file is already present on the server, for example `.env.api` or `.env.prod.api`.
+
+## Recommended Linux setup
+
+1. Install Bun on the host.
+2. Copy your project to the server.
+3. Install dependencies with `bun install`.
+4. Place the correct env file on the machine.
+5. Build with `morphis build --server=api`.
+6. Run the process under `systemd` so it restarts automatically.
+7. Put Nginx or another reverse proxy in front of the app if you need TLS termination or domain routing.
+
+## Example `systemd` service
+
+```ini
+[Unit]
+Description=Morphis API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/my-api
+ExecStart=/usr/local/bin/bun --env-file=.env.api node_modules/morphis/dist/scripts/commands/start.js --server=api
+Restart=always
+RestartSec=5
+User=www-data
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+If you expose Bun directly on port `8080`, place a reverse proxy in front of it and forward requests from ports `80` and `443`.
+
+## Optional: build a Linux image yourself
+
+If you still want a container for your own server, use:
+
+```bash
+morphis docker:build --server=api
+```
+
+That command builds a Linux amd64 image, but unlike `morphis deploy`, you stay responsible for where and how that image runs.

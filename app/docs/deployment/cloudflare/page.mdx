@@ -4,10 +4,62 @@ title: Cloudflare Deployment
 
 # Cloudflare Deployment
 
-Cloudflare is a first-class deployment target in the CLI.
+The Cloudflare target deploys Morphis by using Cloudflare Containers behind a Worker-based entrypoint.
 
 ```bash
 morphis deploy --server=api --target=cloudflare
 ```
 
-This target is especially useful when pairing Morphis with D1 and edge-friendly runtime bindings.
+## What the CLI does under the hood
+
+When you run the Cloudflare target, Morphis:
+
+1. Generates the Worker and Wrangler configuration needed for the deployment.
+2. Uses Wrangler under the hood to authenticate and deploy.
+3. Publishes the workload as a Cloudflare Container.
+4. Routes requests through a Worker and Durable Object layer.
+
+This is a serverless Docker-style deploy, not a traditional VM-style server deploy.
+
+## Cloudflare services involved
+
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/) provides the public request entrypoint.
+- [Cloudflare Containers](https://developers.cloudflare.com/containers/) runs the containerized Morphis workload.
+- Durable Objects are used to route requests to container instances.
+- D1 can be attached when your Morphis app uses the D1 driver.
+
+## Paid plan requirement
+
+Cloudflare Containers is available on the Workers Paid plan. Before using this target, make sure the account is subscribed to the paid Workers plan:
+
+- [Cloudflare Containers](https://developers.cloudflare.com/containers/)
+- [Cloudflare Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/)
+
+## Authentication flow
+
+Morphis shells out to Wrangler under the hood. If you are not already authenticated, Wrangler may prompt you to log in and open a browser window for authorization.
+
+The usual manual flow is:
+
+```bash
+wrangler login
+```
+
+You can also use an API token for non-interactive environments. Morphis can resolve the account ID from a logged-in Wrangler session, or you can provide `CLOUDFLARE_ACCOUNT_ID` explicitly.
+
+## Required local prerequisites
+
+- Docker installed and running.
+- A Cloudflare account on the Workers Paid plan.
+- Wrangler available globally or through `bunx wrangler`.
+- A logged-in Wrangler session or a valid `CLOUDFLARE_API_TOKEN`.
+
+## D1 note
+
+If your app uses the D1 driver, provide the database details in your env file or pass them explicitly:
+
+```bash
+morphis deploy --server=api --target=cloudflare --d1-name=my-db --d1-id=<uuid>
+```
+
+This target is especially useful when pairing Morphis with D1 and other Cloudflare-native bindings.
