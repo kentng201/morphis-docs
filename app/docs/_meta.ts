@@ -1,7 +1,4 @@
 export default {
-    index: {
-        title: 'Start Here'
-    },
     'getting-started': {
         title: 'Getting Started'
     },

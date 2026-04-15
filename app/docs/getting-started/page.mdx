@@ -4,56 +4,115 @@ title: Getting Started
 
 # Getting Started
 
-Morphis is designed around a clean backend structure, a Bun-first workflow, and a CLI that scaffolds the repetitive pieces for you.
-
 ## Requirements
 
 - Bun installed locally
-- A terminal with access to your project folder
-- A database chosen during project setup, if your app needs persistence
+- Git installed locally
+- VS Code or Cursor opened on the workspace root folder
+- A terminal with permission to run global Bun commands such as `bun link` or `bun install -g`
 
-## Install the CLI
+## Recommended workspace layout
+
+Create one shared workspace folder so your app and the Morphis framework live side by side:
+
+```text
+morphis-workspaces/
+├── morphis/
+└── my-backend/
+```
+
+This layout is useful when you work with AI agents in VS Code or Cursor because the editor can see both your application code and the Morphis framework source in the same workspace.
+
+## Minimal tutorial
+
+### 1. Create the workspace folder and clone Morphis
+
+```bash
+mkdir morphis-workspaces
+cd morphis-workspaces
+git clone https://github.com/kentng201/morphis.git
+```
+
+### 2. Register Morphis as a global CLI
+
+```bash
+cd morphis
+bun install
+bun link
+cd ..
+```
+
+`bun link` registers the cloned `morphis` package globally, so you can run the full `morphis` CLI from anywhere in this workspace.
+
+If you want the published package globally instead of your local clone, use this alternative command:
 
 ```bash
 bun install -g morphis
 ```
 
-## Create a new project
+For this workspace-based setup, `bun link` is the better option because the global `morphis` command points at your cloned framework source.
+
+### 3. Create your backend project
 
 ```bash
-morphis new my-api
-cd my-api
+morphis new my-backend
+```
+
+When the CLI asks which database you want, choose `No database needed`.
+
+### 4. Link your backend to the local Morphis package
+
+```bash
+cd my-backend
 bun install
+bun link morphis
 ```
 
-## Start development
+This keeps `my-backend` connected to the local framework clone in the same workspace.
 
-Morphis supports server-based environment files such as `.env.api` and optional variants like `.env.dev.api`.
+### 5. Run the development server
 
 ```bash
-morphis dev --server=api
-morphis dev --server=api --env=dev
+bun run dev
 ```
 
-## Useful first checks
+The generated minimal app uses the default `api` server and serves on `http://localhost:3000`.
 
-```bash
-morphis route:list --server=api
-morphis route:list --server=api --format=json
+### 6. Open the app locally
+
+Open `http://localhost:3000` in your browser.
+
+The generated starter route responds from `src/routes/api.ts`, so the minimal successful result is a JSON response like this:
+
+```json
+{ "message": "OK" }
 ```
 
-## Typical project structure
+## Generated structure
 
-- `src/controllers` for request handlers
-- `src/services` for business logic
-- `src/routes` for server entry files
-- `src/validators` for request rules
-- `src/models` for database access
-- `migrations/default` for SQL migration files
+After the tutorial, your workspace should look like this:
 
-## Expected outcome
-
-After the first run, you should have a local HTTP server, discoverable routes, and a project structure ready for controllers, services, and models.
+```text
+morphis-workspaces/
+├── morphis/
+│   ├── scripts/
+│   └── src/
+└── my-backend/
+	├── .env.api
+	├── package.json
+	├── tsconfig.json
+	└── src/
+		├── config/
+		├── controllers/
+		├── middlewares/
+		├── providers/
+		├── routes/
+		│   └── api.ts
+		├── services/
+		├── transformers/
+		├── types/
+		└── validators/
+```
 
 ## Next steps
 
