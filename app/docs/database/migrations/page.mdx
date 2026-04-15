@@ -1,0 +1,26 @@
+---
+title: Migrations
+---
+
+# Migrations
+
+Morphis stores SQL migrations by connection and applies them through the CLI.
+
+## Create a migration
+
+```bash
+morphis new:migration create-posts-table
+```
+
+## Run pending migrations
+
+```bash
+morphis migrate
+morphis migrate --connection=default
+```
+
+## Notes
+
+- migrations live in folders such as `migrations/default`
+- D1 can be applied remotely through Wrangler-backed workflows
+- local Bun execution can apply SQL directly against the configured database

@@ -1,0 +1,7 @@
+:root {
+  --morphis-accent-hue: 220deg;
+}
+
+body {
+  font-feature-settings: 'rlig' 1, 'calt' 1;
+}

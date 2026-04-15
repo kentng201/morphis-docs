@@ -1,0 +1,29 @@
+---
+title: Models
+---
+
+# Models
+
+Morphis models extend a shared base class and give you a consistent place for table metadata and query access.
+
+## Example
+
+```ts
+import { Model } from 'morphis'
+
+export class Post extends Model {
+  static connection = 'default'
+  static tableName = 'posts'
+}
+```
+
+## Built-in behavior
+
+- camelCase to snake_case field normalization
+- database row mapping back into application-friendly keys
+- shared query entry points such as select, insert, update, and delete
+- schema introspection for supported drivers
+
+## Recommendation
+
+Keep domain logic in services and let models focus on persistence.

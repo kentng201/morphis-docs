@@ -1,0 +1,253 @@
+---
+title: Controllers
+---
+
+import { Steps, Callout } from 'nextra/components'
+
+# Controllers
+
+Controllers are the thin HTTP layer in Morphis.
+They map incoming routes to business logic, keep validation concerns in validators, and return clean responses.
+
+## Generate a controller
+
+Run the generator with a PascalCase name ending in `Controller`:
+
+```bash
+morphis new:controller PostController
+```
+
+The CLI creates `src/controllers/PostController.ts` and derives the route prefix automatically:
+`PostController` → strip suffix → `Post` → kebab-case → `post` → pluralise → **`posts`**
+
+<Callout type="info">
+  Names must be PascalCase and end with `Controller`. Examples: `OrderController`, `UserProfileController`.
+</Callout>
+
+## Generated scaffold
+
+```ts filename="src/controllers/PostController.ts"
+import {
+    Controller,
+    Request,
+    Get,
+    Post,
+    Put,
+    Delete,
+    Validate,
+} from 'morphis';
+
+@Controller('posts')
+export class PostController {
+    @Get()
+    async list(req: Request) {
+    }
+
+    @Get(':id')
+    async get(req: Request) {
+    }
+
+    @Post()
+    @Validate({ body: undefined })
+    async create(req: Request) {
+    }
+
+    @Put(':id')
+    @Validate({ body: undefined })
+    async update(req: Request) {
+    }
+
+    @Delete(':id')
+    async delete(req: Request) {
+    }
+}
+```
+
+## Complete PostController guide
+
+<Steps>
+
+### Set up the model and validators
+
+Make sure you have a `Post` model and the validators each action needs.
+
+```ts filename="src/models/Post.ts"
+import { Model } from 'morphis';
+
+export class Post extends Model {
+    static connection = 'default';
+    static tableName = 'posts';
+
+    declare id: number;
+    declare title: string;
+    declare body: string;
+    declare status: string;
+    declare createdAt: Date;
+}
+```
+
+```ts filename="src/validators/PostBodyValidator.ts"
+import { Validator, SimpleValidationRuleMap } from 'morphis';
+import { Post } from '../models/Post';
+
+export type PostBody = Partial<Post>;
+
+export class PostBodyValidator extends Validator<PostBody> {
+    getSimpleRules(): SimpleValidationRuleMap<PostBody> {
+        const { Required, Length, In } = this.rules;
+        return {
+            title: [Required, Length(255)],
+            body: [Required, Length(10000)],
+            status: [Required, In('draft', 'published', 'archived')],
+        };
+    }
+}
+```
+
+```ts filename="src/validators/PostParamsValidator.ts"
+import { Validator, SimpleValidationRuleMap } from 'morphis';
+
+export interface PostParams {
+    id: string;
+}
+
+export class PostParamsValidator extends Validator<PostParams> {
+    getSimpleRules(): SimpleValidationRuleMap<PostParams> {
+        const { Required, Regex } = this.rules;
+        return {
+            id: [Required, Regex(/^\d+$/)],
+        };
+    }
+}
+```
+
+### Fill in the controller
+
+Replace the generated stubs with real handlers that call the model and throw typed errors where needed.
+
+```ts filename="src/controllers/PostController.ts"
+import {
+    Controller,
+    Request,
+    Get,
+    Post,
+    Put,
+    Delete,
+    Validate,
+    NotFoundError,
+} from 'morphis';
+import { Post as PostModel } from '../models/Post';
+import { PostBodyValidator } from '../validators/PostBodyValidator';
+import { PostParamsValidator } from '../validators/PostParamsValidator';
+
+@Controller('posts')
+export class PostController {
+    @Get()
+    async list(req: Request) {
+        return await PostModel.findAll();
+    }
+
+    @Get(':id')
+    @Validate({ params: PostParamsValidator })
+    async get(req: Request) {
+        const { id } = req.params;
+        const post = await PostModel.findOne({ where: { id } });
+        if (!post) throw new NotFoundError('Post not found');
+        return post;
+    }
+
+    @Post()
+    @Validate({ body: PostBodyValidator })
+    async create(req: Request) {
+        return await PostModel.create(req.body as Partial<PostModel>);
+    }
+
+    @Put(':id')
+    @Validate({ body: PostBodyValidator, params: PostParamsValidator })
+    async update(req: Request) {
+        const { id } = req.params;
+        const post = await PostModel.findOne({ where: { id } });
+        if (!post) throw new NotFoundError('Post not found');
+        await post.update(req.body as Partial<PostModel>);
+        return post;
+    }
+
+    @Delete(':id')
+    @Validate({ params: PostParamsValidator })
+    async delete(req: Request) {
+        const { id } = req.params;
+        const post = await PostModel.findOne({ where: { id } });
+        if (!post) throw new NotFoundError('Post not found');
+        await post.destroy();
+        return post;
+    }
+}
+
+export default new PostController();
+```
+
+<Callout type="info">
+  The file exports both the `PostController` **class** (named export) and a ready-to-use **instance** as the default export.
+  Importing the default means only `PostController` is pulled in — none of the other controllers or services are included in the route bundle.
+</Callout>
+
+### Register the controller in the router
+
+```ts filename="src/routes/api.ts"
+import { Router, Logger, Track, Cors, Connect, Get } from 'morphis';
+import postController from '../controllers/PostController';
+
+const router = new Router();
+
+router.get(() => ({ message: 'OK' }), [Get('/')]);
+router.resources(postController);
+
+router.use([
+    Logger,
+    Track,
+    Cors({ origins: '*' }),
+    Connect('default'),
+]);
+
+export default router;
+```
+
+`router.resources(postController)` registers all five standard routes at once:
+
+| Method   | Path        | Action   |
+| -------- | ----------- | -------- |
+| GET      | /posts      | list     |
+| GET      | /posts/:id  | get      |
+| POST     | /posts      | create   |
+| PUT      | /posts/:id  | update   |
+| DELETE   | /posts/:id  | delete   |
+
+### Verify the routes
+
+```bash
+morphis route:list --server=api
+```
+
+Expected table output:
+
+```
+GET     /posts          PostController.list
+GET     /posts/:id      PostController.get
+POST    /posts          PostController.create
+PUT     /posts/:id      PostController.update
+DELETE  /posts/:id      PostController.delete
+```
+
+</Steps>
+
+## Why default-export an instance?
+
+When you do `import postController from '../controllers/PostController'`, the bundler only pulls in that one file.
+Named class exports from other controllers or services are excluded from the bundle unless they are also imported explicitly.
+This keeps route bundles smaller and avoids accidental side effects from unrelated controllers loading at startup.
+
+## Related
+
+- [Routing](/docs/http/routing)
+- [Middleware](/docs/http/middleware)
+- [Validation](/docs/validation)

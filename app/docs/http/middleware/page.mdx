@@ -1,0 +1,28 @@
+---
+title: Middleware
+---
+
+# Middleware
+
+Morphis middleware can be attached globally or per endpoint to keep request concerns separate from business logic.
+
+## Built-in flow helpers
+
+- `@Validate(...)` for request validation
+- `@Transform(...)` for shaping output
+- `@Connect(...)` for database connection selection
+- `TrackMiddleware` for request tracking
+- `LoggerMiddleware` for structured request logs
+- `CorsMiddleware` for CORS behavior
+
+## Why it matters
+
+A common production flow is:
+
+1. assign a track id
+2. log request metadata
+3. validate the incoming payload
+4. resolve the right connection
+5. transform the response
+
+This keeps controllers focused and predictable.

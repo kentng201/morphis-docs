@@ -1,0 +1,48 @@
+---
+title: Validation
+---
+
+# Validation
+
+Morphis includes a built-in validation engine so you can define request rules without pulling in another package.
+
+## Common rules
+
+- `Required`
+- `Optional`
+- `Nullable`
+- `Nullish`
+- `Email`
+- `Numeric`
+- `Min()` and `Max()`
+- `Regex()`
+- `In()` and `Enum()`
+
+## Example validator
+
+```ts
+import { SimpleRules, Validator } from 'morphis'
+
+export class CreatePostValidator extends Validator {
+  getSimpleRules() {
+    return {
+      title: [SimpleRules.Required, SimpleRules.Min(3)],
+      email: [SimpleRules.Required, SimpleRules.Email]
+    }
+  }
+}
+```
+
+## Request validation
+
+```ts
+@Validate({ body: CreatePostValidator })
+```
+
+## Required field behavior
+
+Use `Required` for fields that must exist. This prevents missing values from leaking downstream and gives a clean client-facing validation error instead.
+
+## Result format
+
+When validation fails, Morphis returns a structured error map keyed by field name.

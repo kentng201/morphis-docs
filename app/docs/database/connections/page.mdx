@@ -1,0 +1,23 @@
+---
+title: Connections
+---
+
+# Connections
+
+Database connections are configured per project and can be selected explicitly for specific workloads.
+
+## D1 support
+
+Morphis resolves a D1 database from a direct connection object, a named runtime binding, or a local storage fallback when running under Bun.
+
+## Connection examples
+
+Typical settings include:
+
+- `host`, `port`, `database`, `username`, `password` for SQL servers
+- `storage` for SQLite-style local files
+- `binding` for Cloudflare D1 runtime access
+
+## Good practice
+
+Keep the default connection stable and use named connections only when you truly need separation between workloads.

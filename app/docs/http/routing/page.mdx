@@ -1,0 +1,47 @@
+---
+title: Routing
+---
+
+# Routing
+
+Morphis routes are registered through decorators and map directly to controller methods or endpoint handlers.
+
+## HTTP decorators
+
+- `@Get(path?)`
+- `@Post(path?)`
+- `@Put(path?)`
+- `@Delete(path?)`
+- `@Patch(path?)`
+- `@Controller(basePath)`
+
+## Example
+
+```ts
+import { Controller, Get, Post } from 'morphis'
+
+@Controller('/posts')
+export class PostController {
+  @Get('/')
+  index() {
+    return { data: [] }
+  }
+
+  @Post('/')
+  store() {
+    return { created: true }
+  }
+}
+```
+
+## Route inspection
+
+Use the CLI to verify what is registered:
+
+```bash
+morphis route:list --server=api --format=table
+```
+
+## Result
+
+Each route carries its HTTP method, resolved path, action name, and optional validation metadata.

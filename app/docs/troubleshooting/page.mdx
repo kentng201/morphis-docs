@@ -1,0 +1,23 @@
+---
+title: Troubleshooting
+---
+
+# Troubleshooting
+
+## Common issues
+
+### Validation did not catch a missing field
+Make sure the field uses the `Required` rule.
+
+### The server name is rejected
+Check that your project has the matching environment file, such as `.env.api`.
+
+### D1 works remotely but not locally
+Confirm the connection includes a local storage fallback or binding setup for your runtime.
+
+### Route output is unclear
+Run the route inspector again with JSON or OpenAPI output.
+
+```bash
+morphis route:list --server=api --format=json
+```

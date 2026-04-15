@@ -1,0 +1,62 @@
+---
+title: Getting Started
+---
+
+# Getting Started
+
+Morphis is designed around a clean backend structure, a Bun-first workflow, and a CLI that scaffolds the repetitive pieces for you.
+
+## Requirements
+
+- Bun installed locally
+- A terminal with access to your project folder
+- A database chosen during project setup, if your app needs persistence
+
+## Install the CLI
+
+```bash
+bun install -g morphis
+```
+
+## Create a new project
+
+```bash
+morphis new my-api
+cd my-api
+bun install
+```
+
+## Start development
+
+Morphis supports server-based environment files such as `.env.api` and optional variants like `.env.dev.api`.
+
+```bash
+morphis dev --server=api
+morphis dev --server=api --env=dev
+```
+
+## Useful first checks
+
+```bash
+morphis route:list --server=api
+morphis route:list --server=api --format=json
+```
+
+## Typical project structure
+
+- `src/controllers` for request handlers
+- `src/services` for business logic
+- `src/routes` for server entry files
+- `src/validators` for request rules
+- `src/models` for database access
+- `migrations/default` for SQL migration files
+
+## Expected outcome
+
+After the first run, you should have a local HTTP server, discoverable routes, and a project structure ready for controllers, services, and models.
+
+## Next steps
+
+- Continue with [Core Concepts](/docs/core-concepts)
+- Learn the [CLI](/docs/cli)
+- Explore [Routing](/docs/http/routing)

@@ -1,0 +1,58 @@
+---
+title: CLI
+---
+
+# CLI
+
+The Morphis CLI is the main entry point for scaffolding, development, builds, migrations, and deployment.
+
+## Project bootstrap
+
+```bash
+morphis new my-api
+morphis new:connection
+morphis new:env
+morphis new:server Admin
+```
+
+## Generators
+
+```bash
+morphis new:controller PostController
+morphis new:service PostService
+morphis new:validator PostValidator
+morphis new:model Post -m -c
+morphis new:migration create-posts-table
+```
+
+## Database tasks
+
+```bash
+morphis migrate
+morphis migrate --connection=default
+morphis sync:model Post
+```
+
+## Development and inspection
+
+```bash
+morphis dev --server=api
+morphis route:list --server=api
+morphis route:list --server=api --format=json
+morphis route:list --server=api --format=openapi
+```
+
+## Build and deploy
+
+```bash
+morphis build --server=api
+morphis start --server=api
+morphis docker:build --server=api
+morphis deploy --server=api --target=cloudflare
+```
+
+## Notes
+
+- Controllers should use PascalCase and end with `Controller`
+- Generated route paths are derived from the controller name
+- Environment-aware commands accept options such as `--env=dev`

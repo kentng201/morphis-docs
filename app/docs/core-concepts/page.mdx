@@ -1,0 +1,39 @@
+---
+title: Core Concepts
+---
+
+# Core Concepts
+
+Morphis follows a layered backend architecture so your request handling stays predictable as the codebase grows.
+
+## Request lifecycle
+
+1. A route is matched by method and path
+2. Middleware runs for tracking, logging, connection, validation, or transformation
+3. The controller or handler executes
+4. Services perform the business logic
+5. A response is returned in a consistent format
+
+## Main building blocks
+
+### Controllers
+Controllers keep HTTP concerns thin and map routes to actions.
+
+### Services
+Services hold reusable business logic and should stay framework-light.
+
+### Validators
+Validators define request expectations using built-in rules such as `Required`, `Email`, `Min`, and `Max`.
+
+### Models
+Models connect your domain objects to the configured database driver through the shared base model.
+
+### Context
+Morphis exposes a typed request context so middleware and controllers can safely share per-request values.
+
+### Error handling
+Validation errors are returned as client-facing responses, while framework and runtime issues stay isolated from your application logic.
+
+## Design goal
+
+The framework aims to give Laravel-style structure without giving up the performance and simplicity of Bun.

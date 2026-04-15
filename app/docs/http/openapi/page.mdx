@@ -1,0 +1,30 @@
+---
+title: OpenAPI
+---
+
+# OpenAPI
+
+Morphis can expose route metadata in OpenAPI-compatible output through the route listing command.
+
+## Generate OpenAPI JSON
+
+```bash
+morphis route:list --server=api --format=openapi
+```
+
+## Other formats
+
+```bash
+morphis route:list --server=api --format=json
+morphis route:list --server=api --format=table
+```
+
+## Scalar integration
+
+For interactive API previews, pair the generated OpenAPI output with the separate Scalar-based tooling in the Morphis ecosystem.
+
+## Good use cases
+
+- internal API docs
+- contract review during development
+- sharing endpoint structure with frontend or integration teams
