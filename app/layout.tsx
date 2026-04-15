@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Head } from 'nextra/components'
 import 'nextra-theme-docs/style.css'
 import './globals.css'
+import { Providers } from './Providers'
 
 export const metadata: Metadata = {
     title: {
@@ -32,7 +33,7 @@ export default async function RootLayout({
             >
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             </Head>
-            <body>{children}</body>
+            <body><Providers>{children}</Providers></body>
         </html>
     )
 }
