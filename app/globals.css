@@ -244,6 +244,46 @@ article blockquote {
   height: 1.25rem;
 }
 
+.landing-nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.landing-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.95rem 0.45rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--morphis-border);
+  background: rgba(246, 246, 244, 0.72);
+  color: var(--morphis-bark);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+  white-space: nowrap;
+}
+
+.landing-theme-toggle:hover {
+  color: var(--morphis-ink);
+  border-color: rgba(94, 75, 59, 0.3);
+}
+
+.landing-theme-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.landing-theme-toggle-label {
+  line-height: 1;
+}
+
 .landing-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
@@ -501,34 +541,42 @@ article blockquote {
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .landing-shell {
-    color: var(--morphis-text);
-  }
+.dark .landing-shell {
+  color: var(--morphis-text);
+}
 
-  .landing-grid > div {
-    border-color: rgba(211, 181, 141, 0.08);
-  }
+.dark .landing-grid > div {
+  border-color: rgba(211, 181, 141, 0.08);
+}
 
-  .landing-github,
-  .landing-secondary-action,
-  .landing-feature-card {
-    background: rgba(53, 43, 35, 0.72);
-  }
+.dark .landing-github,
+.dark .landing-secondary-action,
+.dark .landing-feature-card {
+  background: rgba(53, 43, 35, 0.72);
+}
 
-  .landing-nav-links a,
-  .landing-footer,
-  .landing-footer a,
-  .landing-eyebrow,
-  .landing-code-caption p,
-  .landing-feature-card p,
-  .landing-summary {
-    color: var(--morphis-text);
-  }
+.dark .landing-nav-links a,
+.dark .landing-footer,
+.dark .landing-footer a,
+.dark .landing-eyebrow,
+.dark .landing-code-caption p,
+.dark .landing-feature-card p,
+.dark .landing-summary {
+  color: var(--morphis-text);
+}
 
-  .landing-nav-links a:hover,
-  .landing-footer a:hover,
-  .landing-github:hover {
-    color: var(--x-color-gray-50);
-  }
+.dark .landing-nav-links a:hover,
+.dark .landing-footer a:hover,
+.dark .landing-github:hover {
+  color: var(--x-color-gray-50);
+}
+
+.dark .landing-theme-toggle {
+  background: rgba(53, 43, 35, 0.72);
+  color: var(--morphis-sand);
+}
+
+.dark .landing-theme-toggle:hover {
+  color: var(--x-color-gray-50);
+  border-color: rgba(211, 181, 141, 0.3);
 }
