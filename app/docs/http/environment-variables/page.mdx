@@ -1,0 +1,115 @@
+---
+title: Environment Variables
+---
+
+import { Callout } from 'nextra/components'
+
+# Environment Variables
+
+In Morphis, environment variables are resolved per HTTP server. That behavior is part of the server runtime and CLI flow, which is why this page sits under HTTP.
+
+Each server reads from its own env file in the project root, and commands such as `morphis dev`, `morphis build`, `morphis start`, `morphis route:list`, and `morphis deploy` resolve the target file from the selected server and optional environment name.
+
+## Default file layout
+
+When you create a new project, Morphis generates `.env.api`:
+
+```ini filename=".env.api"
+NAME=api
+PORT=3000
+MULTI_THREAD=true
+```
+
+If you add another server such as `chat`, Morphis creates another server-specific file:
+
+```ini filename=".env.chat"
+NAME=chat
+PORT=3001
+MULTI_THREAD=true
+```
+
+## Resolution rules
+
+The CLI resolves env targets with these patterns:
+
+```bash
+morphis dev --server=api
+morphis dev --server=api --env=dev
+morphis start --env-file=.env.dev.api
+```
+
+From the current implementation:
+
+- `--server=api` resolves to `.env.api`
+- `--server=api --env=dev` resolves to `.env.dev.api`
+- `--env-file=.env.dev.api` uses that explicit file and derives the server name from it when needed
+
+If both `--server` and `--env-file` are provided, they must agree on the same server name.
+
+## Built-in variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NAME` | server name | Identifies the server in logs and runtime output |
+| `PORT` | `3000` or next free port | HTTP port used by `Bun.serve()` |
+| `MULTI_THREAD` | `true` | Enables `reusePort` for multi-thread serving |
+| `ENV` | unset unless env variant is used | Written by `morphis new:env` for named environment files |
+
+## Database variables
+
+Database-related env values depend on the selected driver and your generated config.
+
+For example, a SQLite or D1-oriented setup may include:
+
+```ini
+DB_STORAGE=./database.sqlite
+```
+
+When you add a D1 connection, Morphis can also add values such as:
+
+```ini
+D1_BINDING=DB
+CLOUDFLARE_D1_BINDING=DB
+CLOUDFLARE_D1_DATABASE_NAME=your-cloudflare-d1-name
+CLOUDFLARE_D1_DATABASE_ID=your-cloudflare-d1-uuid
+DB_STORAGE=./database.sqlite
+```
+
+## Custom variables
+
+Application-specific settings live in the same file:
+
+```ini filename=".env.api"
+NAME=api
+PORT=3000
+MULTI_THREAD=true
+
+JWT_SECRET=change-me
+FEATURE_FLAG_NEW_BILLING=true
+```
+
+Read them through `process.env`:
+
+```ts
+const secret = process.env.JWT_SECRET;
+```
+
+## Creating env variants
+
+Use `morphis new:env` to create an environment-specific copy of a server env file:
+
+```bash
+morphis new:env dev --server=api
+```
+
+That creates `.env.dev.api` and injects:
+
+```ini
+ENV=dev
+```
+
+at the top of the generated file.
+
+<Callout type="warning">
+  Never commit secrets to source control. Keep `.env.*` ignored unless you are intentionally committing example files only.
+</Callout>

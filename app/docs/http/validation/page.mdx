@@ -1,0 +1,201 @@
+---
+title: Validation
+---
+
+import { Callout, Tabs } from 'nextra/components'
+
+# Validation
+
+Morphis validation is an HTTP-layer feature implemented by `ValidateMiddleware`. It runs before the controller handler and can validate `headers`, `body`, `params`, and `query` in the same request.
+
+## How validation works
+
+When you attach `@Validate({ ... })`, Morphis:
+
+- constructs the configured validator classes
+- runs all configured validators in parallel
+- merges all validation errors into one field-based error object
+- throws a validation error when any field fails
+- rewrites `req.body`, `req.query`, and `req.params` with each validator's `result.output` when validation succeeds
+
+That means validation is not just a check. It is also the point where sanitized output becomes the request data your controller receives.
+
+## Generate a validator
+
+```bash
+morphis new:validator PostBodyValidator
+```
+
+This creates `src/validators/PostBodyValidator.ts`:
+
+```ts filename="src/validators/PostBodyValidator.ts"
+import { SimpleValidationRuleMap, ValidationRule, Validator } from 'morphis';
+
+export interface PostBody {
+    // TODO: define your data shape here
+}
+
+export class PostBodyValidator extends Validator<PostBody> {
+    getSimpleRules(): SimpleValidationRuleMap<PostBody> {
+        const { Required } = this.rules;
+        return {
+            // TODO: add per-field rules
+        };
+    }
+
+    getRules(): ValidationRule<PostBody>[] {
+        return [
+            // TODO: add cross-field rules
+        ];
+    }
+}
+```
+
+<Callout type="info">
+  Validator class names must be PascalCase and end with `Validator`.
+</Callout>
+
+## Attach validation to a handler
+
+The most common usage is the method decorator form:
+
+```ts
+import { Post, Request, Validate } from 'morphis';
+
+@Post()
+@Validate({ body: PostBodyValidator })
+async create(req: Request) {
+  return postService.create(req.body);
+}
+```
+
+You can validate any combination of request sources:
+
+```ts
+@Validate({
+  headers: AuthHeadersValidator,
+  body: PostBodyValidator,
+  params: PostParamsValidator,
+  query: PostQueryValidator,
+})
+```
+
+## Simple rules reference
+
+`this.rules` exposes the built-in `SimpleRules` helpers.
+
+### Presence
+
+| Rule | Behavior |
+| ---- | -------- |
+| `Required` | Must be present, non-null, non-empty string, non-empty array |
+| `Optional` | Skips the field entirely |
+| `Nullable` | `null` passes; `undefined` fails |
+| `Nullish` | Both `null` and `undefined` pass |
+
+### Format
+
+| Rule | Behavior |
+| ---- | -------- |
+| `Email` | Must match `user@domain.tld` |
+| `Numeric` | Must be a number |
+| `Boolean` | Must be `true` or `false` |
+| `Date` | Must parse as a valid date |
+| `Alphanumeric` | Letters and digits only |
+| `Uppercase` | All uppercase |
+| `Lowercase` | All lowercase |
+| `NoSpecialCharacters` | No special characters |
+| `Positive` | Number greater than 0 |
+| `Negative` | Number less than 0 |
+
+### Parameterized
+
+| Rule | Example | Behavior |
+| ---- | ------- | -------- |
+| `Min(n)` | `Min(3)` | Value or length ≥ n |
+| `Max(n)` | `Max(100)` | Value or length ≤ n |
+| `Length(max, min?)` | `Length(255)` | String character count |
+| `Size(max, min?)` | `Size(10)` | Array item count |
+| `Between(min, max)` | `Between(1, 5)` | Numeric range |
+| `GreaterThan(n)` | `GreaterThan(0)` | Strictly above n |
+| `LessThan(n)` | `LessThan(100)` | Strictly below n |
+| `Regex(pattern)` | `Regex(/^\d+$/)` | Must match pattern |
+| `In(...values)` | `In('draft', 'published')` | Must be one of the values |
+| `Enum(enumObj)` | `Enum(Status)` | Must be a TypeScript enum value |
+| `Decimals(max, min?)` | `Decimals(2)` | Decimal place count |
+
+## Example validator
+
+```ts filename="src/validators/PostBodyValidator.ts"
+import { SimpleValidationRuleMap, Validator } from 'morphis';
+
+export interface PostBody {
+  title: string;
+  body: string;
+  status: string;
+}
+
+export class PostBodyValidator extends Validator<PostBody> {
+  getSimpleRules(): SimpleValidationRuleMap<PostBody> {
+    const { Required, Length, In } = this.rules;
+    return {
+      title: [Required, Length(255)],
+      body: [Required, Length(10000)],
+      status: [Required, In('draft', 'published', 'archived')],
+    };
+  }
+}
+```
+
+## Error response shape
+
+When validation fails, Morphis raises a `ValidationError`, which is serialized into an HTTP 400 response with field-based errors.
+
+<Tabs items={['Missing fields', 'Wrong value']}>
+  <Tabs.Tab>
+```json
+{
+  "errors": {
+    "body": ["body is required"],
+    "status": ["status is required"]
+  }
+}
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```json
+{
+  "errors": {
+    "status": ["status must be one of: draft, published, archived"]
+  }
+}
+```
+  </Tabs.Tab>
+</Tabs>
+
+## `strictCheck`
+
+Validators are permissive by default. Unknown keys are allowed unless you set `readonly strictCheck = true`.
+
+With `strictCheck`, unknown fields are rejected and the validator output is reduced to declared keys only.
+
+```ts
+export class PostBodyValidator extends Validator<PostBody> {
+  readonly strictCheck = true;
+}
+```
+
+## `getRules()` for complex checks
+
+Use `getRules()` for logic that cannot be expressed as a single field rule, such as:
+
+- cross-field validation
+- nested or array-specific logic
+- async lookups
+- domain-level constraints
+
+## Related pages
+
+- [Middleware](/docs/http/middleware)
+- [Transformer](/docs/http/transformer)
+- [Controllers](/docs/http/controllers)

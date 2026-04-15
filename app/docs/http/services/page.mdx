@@ -1,0 +1,142 @@
+---
+title: Services
+---
+
+import { Callout } from 'nextra/components'
+
+# Services
+
+Services are where Morphis expects business logic to live.
+
+The controller should stay focused on HTTP concerns such as routing, validation, and response shape. The service should own the actual use case logic, so it can be reused across controllers, call other services when needed, and keep the request layer clean.
+
+## Why use services
+
+Use services when you want to:
+
+- keep controllers thin
+- reuse business logic across multiple endpoints
+- coordinate multiple models or providers in one place
+- call one service from another service without mixing HTTP concerns into the flow
+
+That separation is the main point: controllers describe the request, services execute the business workflow.
+
+## Generate a service
+
+Morphis includes a built-in generator:
+
+```bash
+morphis new:service PostService
+```
+
+This creates `src/services/PostService.ts`:
+
+```ts filename="src/services/PostService.ts"
+import { Trace } from 'morphis';
+
+@Trace()
+export class PostService {
+}
+
+export const postService = new PostService();
+```
+
+<Callout type="info">
+  The generator accepts names such as `PostService`, `postService`, or `Post`, then normalizes them into a PascalCase class and a camelCase instance export.
+</Callout>
+
+## What the generator gives you
+
+From the current CLI implementation, `morphis new:service` does three things:
+
+- creates a class in `src/services/`
+- decorates the class with `@Trace()`
+- exports a ready-to-use singleton-style instance such as `postService`
+
+## Why `@Trace()` is there
+
+The generated service class uses `@Trace()` so service method calls participate in Morphis request tracing.
+
+That means if a request enters a controller and then flows through one or more service methods, Morphis can keep that call stack in `current.trace` for logging and diagnostics.
+
+## Keep controllers clean
+
+A controller should usually just validate the request, hand off to a service, and return the result:
+
+```ts
+import { Controller, Get, Post, Request, Validate } from 'morphis';
+import { postService } from '../services/PostService';
+import { PostBodyValidator } from '../validators/PostBodyValidator';
+
+@Controller('/posts')
+export class PostController {
+  @Get()
+  async list() {
+    return postService.list();
+  }
+
+  @Post()
+  @Validate({ body: PostBodyValidator })
+  async create(req: Request) {
+    return postService.create(req.body);
+  }
+}
+```
+
+In this layout:
+
+- the controller stays HTTP-focused
+- the service owns the business rules
+- the same service method can be reused elsewhere
+
+## Cross-reference other services
+
+Services are also the right place to coordinate multiple workflows.
+
+```ts
+import { Trace } from 'morphis';
+import { permissionService } from './PermissionService';
+import { auditService } from './AuditService';
+
+@Trace()
+export class PostService {
+  async publish(postId: number, userId: number) {
+    await permissionService.require(userId, 'posts.publish');
+
+    const post = await this.load(postId);
+    post.status = 'published';
+
+    await auditService.record('post.published', { postId, userId });
+    return post;
+  }
+
+  private async load(postId: number) {
+    return { id: postId, status: 'draft' };
+  }
+}
+
+export const postService = new PostService();
+```
+
+This is the preferred place for service-to-service coordination because it avoids turning controllers into orchestration layers.
+
+## Services and request context
+
+Services can still access request-scoped values through `current` when they are called during a request.
+
+That makes it reasonable to read data such as:
+
+- `current.userId`
+- `current.permissions`
+- `current.trackId`
+- `current.db`
+
+If you need request-scoped values in business logic, put the orchestration in the service and keep the controller minimal.
+
+## Related pages
+
+- [Controllers](/docs/http/controllers)
+- [Context](/docs/http/context)
+- [Validation](/docs/http/validation)
+- [Transformer](/docs/http/transformer)
+- [Database Models](/docs/database/models)

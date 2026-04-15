@@ -1,8 +1,12 @@
 export default {
     microservice: { title: 'Microservices' },
     routing: { title: 'Routing' },
+    controllers: { title: 'Controllers' },
+    services: { title: 'Services' },
+    validation: { title: 'Validation' },
+    transformer: { title: 'Transformer' },
     context: { title: 'Context' },
     middleware: { title: 'Middleware' },
-    controllers: { title: 'Controllers' },
+    'environment-variables': { title: 'Environment Variables' },
     openapi: { title: 'API Testing' }
 }

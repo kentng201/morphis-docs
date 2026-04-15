@@ -2,27 +2,225 @@
 title: Middleware
 ---
 
+import { Callout } from 'nextra/components'
+
 # Middleware
 
-Morphis middleware can be attached globally or per endpoint to keep request concerns separate from business logic.
+Morphis uses middleware as its real execution model. Global middleware wraps every matched request, and decorator-style middleware attaches route-specific behavior to controller methods.
 
-## Built-in flow helpers
+This page covers the built-in middleware and decorators that are ready to use today.
 
-- `@Validate(...)` for request validation
-- `@Transform(...)` for shaping output
-- `@Connect(...)` for database connection selection
-- `TrackMiddleware` for request tracking
-- `LoggerMiddleware` for structured request logs
-- `CorsMiddleware` for CORS behavior
+## How middleware fits together
 
-## Why it matters
+In Morphis, the request flow is assembled from two layers:
 
-A common production flow is:
+- global middleware registered with `router.use(...)`
+- route-level decorators or endpoint middleware such as `@Validate(...)`, `@Transform(...)`, and `@Connect(...)`
 
-1. assign a track id
-2. log request metadata
-3. validate the incoming payload
-4. resolve the right connection
-5. transform the response
+That split lets you keep cross-cutting concerns global while still attaching request-specific behavior at the controller method level.
 
-This keeps controllers focused and predictable.
+## Global middleware
+
+These are the built-in pieces intended for `router.use(...)`.
+
+### `Logger`
+
+`Logger` is a singleton `LoggerMiddleware` instance.
+
+```ts
+router.use(Logger)
+```
+
+What it does:
+
+- patches the global `console` methods once
+- reads request-local values from `current`
+- records the resolved request path in `current.path`
+- helps downstream logs carry request context
+
+Use it when you want request-aware logs without manually passing tracing values around.
+
+### `Track`
+
+`Track` is both a global middleware instance and a decorator.
+
+```ts
+router.use(Track)
+```
+
+What it does:
+
+- creates `current.trackId` if it does not already exist
+- adds `X-Track-Id` to the outgoing response
+- wraps plain return values in `Response.json({ data: ... })`
+- logs normalized error details before rethrowing
+
+Use it when you want request correlation IDs across logs and responses.
+
+### `Cors(options?)`
+
+`Cors(...)` creates a `CorsMiddleware` instance.
+
+```ts
+router.use(Cors({ origins: '*' }))
+```
+
+What it does:
+
+- handles `OPTIONS` preflight requests by returning `204`
+- sets CORS headers for allowed origins
+- can also decorate a final `Response` with those headers
+
+Supported options:
+
+- `origins`
+- `methods`
+- `headers`
+- `maxAge`
+
+Use it when your API is called from browsers or multiple frontends.
+
+## Route decorators and endpoint middleware
+
+These built-ins are attached to controller methods or inline route definitions.
+
+### `@Controller(path)`
+
+`@Controller(...)` is a class decorator backed by `ControllerMiddleware`.
+
+```ts
+@Controller('/posts')
+export class PostController {}
+```
+
+What it does:
+
+- stores the controller base path
+- combines that base path with route method decorators
+- stamps route metadata onto bound controller methods
+
+Use it to define the base path for a controller once.
+
+### `@Get()`, `@Post()`, `@Put()`, `@Delete()`, `@Patch()`
+
+These are method decorators backed by `HttpMethodMiddleware`.
+
+```ts
+@Get(':id')
+async get(req: Request) {}
+```
+
+What they do:
+
+- store the HTTP verb for the route
+- normalize the declared path segment
+- register route metadata that the router reads later
+
+Use them on controller methods or as inline route middleware such as `router.get(handler, [Get('/health')])`.
+
+### `@Validate(map)`
+
+`@Validate(...)` is a method decorator backed by `ValidateMiddleware`.
+
+```ts
+@Validate({ body: PostBodyValidator, params: PostParamsValidator })
+```
+
+What it does:
+
+- runs configured validators in parallel
+- merges validation errors across request sources
+- throws a validation error when any check fails
+- rewrites `req.body`, `req.query`, and `req.params` with validator output on success
+
+Use it when you want correctness checks and sanitized request data before the controller runs.
+
+See [Validation](/docs/http/validation) for the full validator model.
+
+### `@Transform(map)`
+
+`@Transform(...)` is a method decorator backed by `TransformerMiddleware`.
+
+```ts
+@Transform({ body: PostBodyTransformer, res: PostResponseTransformer })
+```
+
+What it does:
+
+- transforms `headers`, `body`, `params`, and `query` before the handler
+- optionally transforms the returned value through `res`
+- mutates the request object before controller code sees it
+
+Use it when you want normalization, DTO shaping, or response mapping.
+
+See [Transformer](/docs/http/transformer) for the full transform model.
+
+### `@Connect(name?)` or `Connect(name?)`
+
+`Connect(...)` is a method decorator and endpoint middleware backed by `ConnectMiddleware`.
+
+```ts
+@Connect('default')
+```
+
+or
+
+```ts
+router.get(handler, [Get('/posts'), Connect('default')])
+```
+
+What it does:
+
+- resolves the named database connection lazily
+- stores the resolved driver handle on `current.db[name]`
+- returns HTTP 503 if the connection is unavailable
+- leaves unresolved connections as `null` on `current.db`
+
+Use it when a handler needs a database connection inside the request lifecycle.
+
+To understand the database side of this flow, see [Database Connections](/docs/database/connections) and [Database Models](/docs/database/models).
+
+### `@Track` or `@Track()`
+
+`Track` also works as a method or class decorator.
+
+```ts
+@Track()
+export class PostController {}
+```
+
+What it does:
+
+- wraps a single method or every method in a class
+- ensures a request track id exists
+- adds `X-Track-Id` to the response
+
+Use it when you want request tracking only for selected controllers or handlers instead of globally.
+
+## Typical setup
+
+```ts
+import { Connect, Cors, Logger, Router, Track } from 'morphis';
+
+const router = new Router();
+
+router.use([
+	Logger,
+	Track,
+	Cors({ origins: '*' }),
+	Connect('default'),
+]);
+```
+
+<Callout type="info">
+	`Connect('default')` can be registered globally or per handler. Use the narrowest scope that matches your application, especially if only some routes need database access.
+</Callout>
+
+## Related middleware pages
+
+- [Validation](/docs/http/validation)
+- [Transformer](/docs/http/transformer)
+- [Context](/docs/http/context)
+- [Environment Variables](/docs/http/environment-variables)
+- [Database Connections](/docs/database/connections)
+- [Database Models](/docs/database/models)

@@ -2,57 +2,626 @@
 title: CLI
 ---
 
+import { Callout } from 'nextra/components'
+
 # CLI
 
-The Morphis CLI is the main entry point for scaffolding, development, builds, migrations, and deployment.
+The Morphis CLI is the main entry point for scaffolding, development, builds, migrations, runtime, and deployment.
 
-## Project bootstrap
+This page is organized as a command reference. Start with the summary, then jump to the individual command you need.
+
+## Command summary
+
+### Project bootstrap
+
+- [`morphis new`](#cmd-new) creates a new Morphis project from scratch.
+- [`morphis new:connection`](#cmd-new-connection) adds a database connection to an existing project.
+- [`morphis new:env`](#cmd-new-env) creates an environment-specific env file from a server env file.
+- [`morphis new:server`](#cmd-new-server) creates a new server with its own routes file and env file.
+
+### Code generators
+
+- [`morphis new:controller`](#cmd-new-controller) scaffolds a resource-style controller.
+- [`morphis new:service`](#cmd-new-service) scaffolds a service class with a default instance export.
+- [`morphis new:transformer`](#cmd-new-transformer) scaffolds a transformer class.
+- [`morphis new:validator`](#cmd-new-validator) scaffolds a validator class and related interface.
+- [`morphis new:model`](#cmd-new-model) scaffolds a model and can introspect existing table columns.
+- [`morphis sync:model`](#cmd-sync-model) refreshes an existing model from live database columns.
+- [`morphis new:migration`](#cmd-new-migration) creates an empty SQL migration file.
+
+### Development and inspection
+
+- [`morphis dev`](#cmd-dev) runs the selected server in watch mode.
+- [`morphis route:list`](#cmd-route-list) lists routes as a table, JSON, or OpenAPI.
+- [`morphis kill:thread`](#cmd-kill-thread) kills processes listening on a server port.
+
+### Build and runtime
+
+- [`morphis build`](#cmd-build) bundles a server into `dist/<server>/`.
+- [`morphis start`](#cmd-start) builds and starts the production bundle.
+- [`morphis docker:build`](#cmd-docker-build) builds a Docker image for a server.
+
+### Database and deployment
+
+- [`morphis migrate`](#cmd-migrate) runs pending SQL migrations.
+- [`morphis deploy`](#cmd-deploy) deploys a built server to AWS, Google Cloud, or Cloudflare.
+
+### Help
+
+- [`morphis help`](#cmd-help) prints the command list, usage patterns, and examples.
+
+## Shared CLI behavior
+
+Most runtime-oriented commands resolve the target environment using one of these inputs:
 
 ```bash
-morphis new my-api
-morphis new:connection
-morphis new:env
-morphis new:server Admin
+--server=<name>
+--env=<name>
+--env-file=.env.<name>
 ```
 
-## Generators
+`--env=<name>` resolves to the env file pattern `.env.<env>.<server>`, while the default server file remains `.env.<server>` when no env name is provided.
+
+Commands that operate on servers such as `dev`, `route:list`, `build`, `start`, `docker:build`, `kill:thread`, and `deploy` all depend on that resolution logic.
+
+<Callout type="info">
+	The CLI also runs an update check before dispatching a command. Set `MORPHIS_SKIP_UPDATE_CHECK=1` if you need to suppress that behavior in automation or local validation.
+</Callout>
+
+<a id="cmd-new"></a>
+## `morphis new`
+
+**Usage**
+
+```bash
+morphis new <project-name>
+```
+
+**What it is for**
+
+Creates a new Morphis project with the standard folder structure, starter route file, env file, package manifest, TypeScript config, and optional database setup.
+
+**What it does**
+
+- creates the base `src/` folders such as `routes`, `controllers`, `services`, `validators`, and `types`
+- generates `src/index.ts` and `src/routes/api.ts`
+- creates `.env.api` with `PORT=3000`
+- writes project scripts like `dev`, `build`, `start`, and `route:list`
+- optionally generates `src/config/database.ts` and typed `src/types/Context.d.ts`
+- initializes a Git repository when Git is available
+
+**Notes**
+
+- during setup, the CLI interactively asks which database to use
+- choosing `No database needed` skips database config generation
+- the generated `dev` script runs `morphis dev --server=api --project=<project-name>`
+
+**Example**
+
+```bash
+morphis new my-backend
+```
+
+<a id="cmd-new-connection"></a>
+## `morphis new:connection`
+
+**Usage**
+
+```bash
+morphis new:connection
+```
+
+**What it is for**
+
+Adds another named database connection to an existing Morphis project.
+
+**What it does**
+
+- prompts for the connection name
+- prompts for the database driver
+- updates `package.json` with any missing driver dependencies
+- creates or updates `src/config/database.ts`
+- regenerates `src/types/Context.d.ts` so `current.db` stays typed
+- for D1, updates your env files with the required D1 variables
+
+**Notes**
+
+- the first connection becomes the default connection automatically
+- after adding a non-installed driver, run `bun install`
+- this command is interactive rather than flag-driven
+
+<a id="cmd-new-env"></a>
+## `morphis new:env`
+
+**Usage**
+
+```bash
+morphis new:env <env-name> --server=<name> [--from=.env.<name>]
+```
+
+**What it is for**
+
+Creates an environment-specific env file, usually from the base server env file.
+
+**What it does**
+
+- copies `.env.<server>` by default
+- writes the target as `.env.<env>.<server>`
+- injects `ENV=<env-name>` at the top of the file
+- refuses to overwrite an existing target env file
+
+**Example**
+
+```bash
+morphis new:env dev --server=api
+```
+
+<a id="cmd-new-server"></a>
+## `morphis new:server`
+
+**Usage**
+
+```bash
+morphis new:server <server-name>
+```
+
+**What it is for**
+
+Adds another server entrypoint to an existing project.
+
+**What it does**
+
+- creates `src/routes/<server>.ts`
+- creates `.env.<server>`
+- auto-selects the next unused port starting from `3000`
+- adds `dev:<server>`, `build:<server>`, and `start:<server>` scripts to `package.json`
+
+**Example**
+
+```bash
+morphis new:server chat
+```
+
+<a id="cmd-new-controller"></a>
+## `morphis new:controller`
+
+**Usage**
+
+```bash
+morphis new:controller <ControllerName>
+```
+
+**What it is for**
+
+Generates a resource-style controller with `list`, `get`, `create`, `update`, and `delete` methods.
+
+**What it does**
+
+- requires a PascalCase name ending in `Controller`
+- derives the route prefix from the class name
+- creates a controller file in `src/controllers/`
+- includes `@Controller`, HTTP decorators, and `@Validate` placeholders for write actions
+
+**Example**
 
 ```bash
 morphis new:controller PostController
-morphis new:service PostService
+```
+
+**Notes**
+
+- `PostController` becomes the route prefix `posts`
+- generated method bodies are empty stubs for you to fill in
+
+<a id="cmd-new-service"></a>
+## `morphis new:service`
+
+**Usage**
+
+```bash
+morphis new:service <ServiceName>
+```
+
+**What it is for**
+
+Creates a service class and a default singleton-style instance export.
+
+**What it does**
+
+- normalizes the provided name to a `SomethingService` class
+- creates the file in `src/services/`
+- decorates the class with `@Trace()`
+- exports an instance such as `chatService`
+
+**Example**
+
+```bash
+morphis new:service ChatService
+```
+
+<a id="cmd-new-transformer"></a>
+## `morphis new:transformer`
+
+**Usage**
+
+```bash
+morphis new:transformer <TransformerName>
+```
+
+**What it is for**
+
+Creates a transformer class in `src/transformers/`.
+
+**What it does**
+
+- requires a PascalCase name ending in `Transformer`
+- creates the file in `src/transformers/`
+- scaffolds a class extending `Transformer<any, any>` with a default `transform(data)` method
+
+**Example**
+
+```bash
+morphis new:transformer PostResponseTransformer
+```
+
+<a id="cmd-new-validator"></a>
+## `morphis new:validator`
+
+**Usage**
+
+```bash
+morphis new:validator <ValidatorName>
+```
+
+**What it is for**
+
+Creates a validator class with both simple-rule and custom-rule placeholders.
+
+**What it does**
+
+- requires a PascalCase name ending in `Validator`
+- derives an entity interface name from the validator name
+- creates the file in `src/validators/`
+- stubs `getSimpleRules()` and `getRules()`
+
+**Example**
+
+```bash
 morphis new:validator PostValidator
-morphis new:model Post -m -c
+```
+
+<a id="cmd-new-model"></a>
+## `morphis new:model`
+
+**Usage**
+
+```bash
+morphis new:model <ModelName> [--connection=<name>] [-m] [-c] [-r] [-f] [-s]
+```
+
+**What it is for**
+
+Creates a model class and optionally introspects the target database table to generate declared fields.
+
+**What it does**
+
+- resolves the target connection from `src/config/database.ts`
+- derives the table name from the model name
+- tries to introspect existing SQL columns for supported drivers
+- writes the model into `src/models/`
+- sets the model connection name in the generated class
+
+**Supported drivers for introspection**
+
+- MySQL
+- MariaDB
+- PostgreSQL
+- Microsoft SQL Server
+- SQLite
+- D1 using local SQLite storage
+
+**Important caveat**
+
+The flags `-m`, `-c`, `-r`, `-f`, and `-s` are currently accepted but still marked as coming soon in the implementation. The command logs TODO output for those extra scaffolds instead of generating them today.
+
+**Example**
+
+```bash
+morphis new:model Post --connection=default
+```
+
+<a id="cmd-sync-model"></a>
+## `morphis sync:model`
+
+**Usage**
+
+```bash
+morphis sync:model <ModelName> [--connection=<name>]
+```
+
+**What it is for**
+
+Refreshes an existing model from the live table definition in the target database.
+
+**What it does**
+
+- loads the model from `src/models/<ModelName>.ts`
+- resolves the target database connection
+- introspects the live table columns
+- updates the model's declared fields to match the schema
+
+**When to use it**
+
+Run this after migrations or manual schema changes when you want the model fields to reflect the actual database shape.
+
+<a id="cmd-new-migration"></a>
+## `morphis new:migration`
+
+**Usage**
+
+```bash
+morphis new:migration <name> [--connection=<name>]
+```
+
+**What it is for**
+
+Creates an empty `.sql` migration file for the selected connection.
+
+**What it does**
+
+- resolves the connection from `src/config/database.ts`
+- ensures the driver supports SQL migrations
+- creates the file under `migrations/<connection>/`
+- prefixes the filename with a timestamp
+
+**Example**
+
+```bash
 morphis new:migration create-posts-table
 ```
 
-## Database tasks
+<a id="cmd-migrate"></a>
+## `morphis migrate`
+
+**Usage**
 
 ```bash
-morphis migrate
-morphis migrate --connection=default
-morphis sync:model Post
+morphis migrate [--connection=<name>]
 ```
 
-## Development and inspection
+**What it is for**
+
+Runs pending SQL migrations for the selected connection.
+
+**What it does**
+
+- loads the named connection from `src/config/database.ts`
+- ensures a `migrations` table exists
+- reads pending files from `migrations/<connection>/`
+- records the migration batch after each successful file
+
+**Notes**
+
+- supported SQL migration drivers are MySQL, MariaDB, PostgreSQL, Microsoft SQL Server, SQLite, and D1
+- for D1, local migrations use the configured SQLite storage path
+
+<a id="cmd-dev"></a>
+## `morphis dev`
+
+**Usage**
+
+```bash
+morphis dev --server=<name> [--env=<name>] [--project=<name>]
+```
+
+**What it is for**
+
+Runs a Morphis server in watch mode for development.
+
+**What it does**
+
+- resolves the env file for the selected server
+- runs `bun --watch`
+- starts `src/index.ts` with the selected server
+- passes `--project=<name>` when available so multi-project process management can distinguish servers
+
+**Example**
 
 ```bash
 morphis dev --server=api
-morphis route:list --server=api
-morphis route:list --server=api --format=json
-morphis route:list --server=api --format=openapi
 ```
 
-## Build and deploy
+<a id="cmd-route-list"></a>
+## `morphis route:list`
+
+**Usage**
+
+```bash
+morphis route:list --server=<name> [--format=table|json|openapi] [--title=<name>] [--version=<semver>] [--description=<text>]
+```
+
+**What it is for**
+
+Inspects the selected server and prints the registered routes.
+
+**What it does**
+
+- loads the chosen env file
+- imports the selected route file
+- outputs route data as a table, JSON, or OpenAPI document
+
+**Examples**
+
+```bash
+morphis route:list --server=api
+morphis route:list --server=api --format=json
+morphis route:list --server=api --format=openapi --title="NDM API"
+```
+
+<a id="cmd-build"></a>
+## `morphis build`
+
+**Usage**
+
+```bash
+morphis build --server=<name> [--env=<name>]
+```
+
+**What it is for**
+
+Bundles a server for production into `dist/<server>/`.
+
+**What it does**
+
+- verifies `src/routes/<server>.ts` exists
+- generates a temporary Bun entrypoint that wraps the router with `Bun.serve()`
+- builds the server into `dist/<server>/index.js`
+- removes the temporary entry file after the build
+
+**Example**
 
 ```bash
 morphis build --server=api
-morphis start --server=api
-morphis docker:build --server=api
-morphis deploy --server=api --target=cloudflare
 ```
 
-## Notes
+<a id="cmd-start"></a>
+## `morphis start`
 
-- Controllers should use PascalCase and end with `Controller`
-- Generated route paths are derived from the controller name
-- Environment-aware commands accept options such as `--env=dev`
+**Usage**
+
+```bash
+morphis start --server=<name> [--env=<name>] [--project=<name>] [--no-build]
+```
+
+**What it is for**
+
+Starts the built production server.
+
+**What it does**
+
+- builds the selected server first unless `--no-build` is set
+- runs `dist/<server>/index.js` with the selected env file
+- forces `--colorless` output for production runtime logs
+
+**Example**
+
+```bash
+morphis start --server=api
+```
+
+<a id="cmd-docker-build"></a>
+## `morphis docker:build`
+
+**Usage**
+
+```bash
+morphis docker:build --server=<name> [--env=<name>] [--version=<tag>] [--no-build]
+```
+
+**What it is for**
+
+Builds a Docker image for a Morphis server.
+
+**What it does**
+
+- optionally runs `morphis build` first
+- verifies `dist/<server>/index.js` exists
+- generates a temporary Dockerfile
+- builds a Linux AMD64 image and loads it into the local Docker daemon
+
+**Notes**
+
+- image naming is derived from `package.json` and the selected server and env
+- the command also supports an internal Lambda adapter path when invoked with `--lambda`
+
+**Example**
+
+```bash
+morphis docker:build --server=api --version=1.0.0
+```
+
+<a id="cmd-deploy"></a>
+## `morphis deploy`
+
+**Usage**
+
+```bash
+morphis deploy --server=<name> [--env=<name>] --target=aws|gcloud|cloudflare [--connection=<name>] [--version=<tag>] [--region=<region>] [--gcp-project=<id>] [--function=<name>] [--service=<name>] [--worker=<name>] [--d1-binding=<name>] [--d1-name=<name>] [--d1-id=<uuid>] [--max-instances=<n>] [--port=<n>] [--sleep-after=<duration>] [--no-build] [--no-docker-build] [--no-migrate]
+```
+
+**What it is for**
+
+Deploys a server to one of the supported cloud targets.
+
+**Supported targets**
+
+- AWS Lambda and ECR-based packaging
+- Google Cloud Run with Artifact Registry
+- Cloudflare Containers, with optional D1 migration support
+
+**What it does**
+
+- resolves the server and env file
+- can build the bundle and Docker image for you
+- can run migrations unless disabled
+- computes sensible default image and service names from the project, server, and env
+- uses cloud-specific CLIs such as AWS CLI, `gcloud`, `docker`, `curl`, and `wrangler` depending on the target
+
+**Notes**
+
+- this is the largest CLI command and the most infrastructure-dependent one
+- Cloudflare deployment includes logic for D1 metadata, bindings, and remote migration support
+
+<a id="cmd-kill-thread"></a>
+## `morphis kill:thread`
+
+**Usage**
+
+```bash
+morphis kill:thread --server=<name> [--project=<name>]
+```
+
+**What it is for**
+
+Kills processes that are listening on the port defined by the selected server env file.
+
+**What it does**
+
+- reads the server port from the resolved env file
+- finds listening processes on that port
+- optionally filters to processes whose command line includes `--project=<name>`
+- terminates the matching processes
+
+**Example**
+
+```bash
+morphis kill:thread --server=api --project=my-backend
+```
+
+<a id="cmd-help"></a>
+## `morphis help`
+
+**Usage**
+
+```bash
+morphis help
+```
+
+**What it is for**
+
+Prints the built-in help screen for the CLI.
+
+**What it shows**
+
+- the full command list
+- common global options
+- example command invocations
+
+You also get the same help screen when you run `morphis` with no command, or when you pass `--help` or `-h`.
+
+## Recommended reading order
+
+- Start with [`morphis new`](#cmd-new) if you are creating a fresh project.
+- Continue with [`morphis dev`](#cmd-dev) and [`morphis route:list`](#cmd-route-list) for day-to-day development.
+- Add [`morphis new:connection`](#cmd-new-connection), [`morphis new:migration`](#cmd-new-migration), and [`morphis migrate`](#cmd-migrate) when your project needs persistence.
+- Use [`morphis build`](#cmd-build), [`morphis start`](#cmd-start), [`morphis docker:build`](#cmd-docker-build), and [`morphis deploy`](#cmd-deploy) when you move toward production.

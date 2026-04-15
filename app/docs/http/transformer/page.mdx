@@ -1,0 +1,150 @@
+---
+title: Transformer
+---
+
+import { Callout } from 'nextra/components'
+
+# Transformer
+
+Morphis transformers are HTTP middleware components that reshape request data before the handler runs, and optionally reshape the returned value after the handler runs.
+
+The feature is implemented by `TransformerMiddleware` and the `Transform(...)` helper.
+
+## Generate a transformer
+
+Morphis includes a dedicated generator for transformer classes:
+
+```bash
+morphis new:transformer PostResponseTransformer
+```
+
+This creates `src/transformers/PostResponseTransformer.ts`:
+
+```ts filename="src/transformers/PostResponseTransformer.ts"
+import { Transformer } from 'morphis';
+
+export class PostResponseTransformer extends Transformer<any, any> {
+  transform(data: any) {
+    return data;
+  }
+}
+```
+
+<Callout type="info">
+  Transformer class names must be PascalCase and end with `Transformer`.
+</Callout>
+
+## Core idea
+
+Each transformer class extends the base `Transformer<TIn, TOut>` type and implements one method:
+
+```ts
+import { Transformer } from 'morphis';
+
+export class PostResponseTransformer extends Transformer<any, any> {
+  transform(data: any) {
+    return data;
+  }
+}
+```
+
+`Transform({ ... })` then attaches those classes to a route.
+
+## What can be transformed
+
+The current `TransformMap` supports these keys:
+
+- `headers` transforms request headers before the handler
+- `body` transforms the parsed request body before the handler
+- `params` transforms route params before the handler
+- `query` transforms query values before the handler
+- `res` transforms the value returned by the handler
+
+## Actual execution order
+
+From the source code, `TransformerMiddleware.handler()` behaves like this:
+
+1. instantiate and run each configured request-side transformer
+2. mutate `req.headers`, `req.body`, `req.params`, or `req.query`
+3. call `next(req)`
+4. if `res` exists, transform the returned value
+5. return the transformed result
+
+So transformers are not passive serializers. They actively rewrite the request object that the controller receives.
+
+## Decorator usage
+
+The intended public API is the method decorator form:
+
+```ts
+import { Post, Request, Transform } from 'morphis';
+
+@Post()
+@Transform({ body: PostBodyTransformer, res: PostResponseTransformer })
+async create(req: Request) {
+  return postService.create(req.body);
+}
+```
+
+`@Transform(...)` wraps the controller method so the middleware runs around the handler.
+
+## Request transformation example
+
+Use request transformers when you want controller code to work with a normalized shape.
+
+```ts
+import { Transformer } from 'morphis';
+
+export class PostBodyTransformer extends Transformer<any, { title: string; body: string }> {
+  transform(data: any) {
+    return {
+      title: String(data.title ?? '').trim(),
+      body: String(data.body ?? '').trim(),
+    };
+  }
+}
+```
+
+With this transformer in place, `req.body` inside the controller becomes the transformed object.
+
+## Response transformation example
+
+Use a response transformer when you want to reshape domain objects before the router serializes them to JSON.
+
+```ts
+import { Transformer } from 'morphis';
+
+export class PostResponseTransformer extends Transformer<any, any> {
+  transform(post: any) {
+    return {
+      id: post.id,
+      title: post.title,
+      preview: String(post.body ?? '').slice(0, 120),
+    };
+  }
+}
+```
+
+If the handler returns a plain value, the transformed output is what Morphis later wraps in `Response.json(...)`.
+
+## Validation and transformation together
+
+Transformers are often paired with validation.
+
+The router composes route middleware so validation wraps transformation, and transformation wraps connection resolution and the final handler. In practice, that means:
+
+- validation runs first
+- transformation runs after validation succeeds
+- the controller receives validated and then transformed request data
+
+This is why transformers are a good place for normalization and output shaping, while validators remain responsible for correctness checks.
+
+## Async transformers are supported
+
+The base `Transformer` contract allows `transform()` to return either a value or a `Promise`, so asynchronous transformation is supported.
+
+## Related pages
+
+- [Middleware](/docs/http/middleware)
+- [Validation](/docs/http/validation)
+- [Controllers](/docs/http/controllers)
