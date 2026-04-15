@@ -21,7 +21,78 @@ If you want deeper low-level ORM details, start with the [Drizzle ORM overview](
 
 A model declares its table and connection, while the framework handles the underlying query builder and runtime driver selection.
 
-For most application code, use Morphis model methods such as `findAll`, `findOne`, `findByPk`, `create`, `update`, and `destroy`. When you need lower-level query composition or transactions, use the underlying Drizzle instance that Morphis manages for the connection.
+For most application code, use Morphis model methods such as `findAll`, `findOne`, `findByPk`, `create`, `update`, `destroy`, `upsert`, and `count`. Morphis now also supports explicit transactions through the model layer, so you can keep CRUD code on Morphis models instead of dropping to raw Drizzle for normal transactional work.
+
+## Transactions with models
+
+Use `ConnectionManager.getTransaction(connection?)` when you want explicit commit and rollback control across any Morphis models that share the same connection.
+
+```ts
+import { ConnectionManager } from 'morphis'
+
+const transaction = await ConnectionManager.getTransaction()
+
+try {
+	const created = await Post.create({ content: 'draft' }, transaction)
+	await AuditLog.create(
+		{ message: `created post ${created.id}` },
+		{ transaction },
+	)
+
+	await Post.update(
+		{ content: 'published' },
+		{ where: { id: created.id }, transaction },
+	)
+
+	await transaction.commit()
+} catch (error) {
+	await transaction.rollback()
+	throw error
+}
+```
+
+If you need a non-default database, pass the connection name:
+
+```ts
+const transaction = await ConnectionManager.getTransaction('analytics')
+```
+
+Morphis accepts the transaction in two forms:
+
+- pass the transaction directly for methods that only take transactional options, such as `Post.create(data, transaction)`
+- pass it inside an options object for query methods, such as `Post.findAll({ where: { id: 1 }, transaction })`
+
+Instance methods also accept transactions:
+
+```ts
+import { ConnectionManager } from 'morphis'
+
+const transaction = await ConnectionManager.getTransaction()
+
+try {
+	const post = await Post.findByPk(1, { transaction })
+	if (post) {
+		await post.update({ content: 'edited' }, transaction)
+		await post.destroy({ transaction })
+	}
+
+	await transaction.commit()
+} catch (error) {
+	await transaction.rollback()
+	throw error
+}
+```
+
+### Transaction notes
+
+- use `await ConnectionManager.getTransaction()` to create a transaction on the default connection
+- use `await ConnectionManager.getTransaction('analytics')` to target a named connection
+- the same transaction can be shared across multiple models and tables as long as those models use the same connection
+- a transaction from one connection cannot be used with a model on a different connection
+- finish the transaction explicitly with `await transaction.commit()` or `await transaction.rollback()`
+- transaction-aware CRUD keeps Morphis key normalization between `camelCase` and `snake_case`
+- you can still use raw Drizzle for joins or lower-level query composition when needed
+- explicit transactions are not supported for Cloudflare D1 bindings; local D1 via SQLite storage is supported
 
 ## Where to continue
 
@@ -29,39 +100,3 @@ For most application code, use Morphis model methods such as `findAll`, `findOne
 - [Connections](/docs/database/connections)
 - [Models](/docs/database/models)
 - [Migrations](/docs/database/migrations)
-
-			return updated[0] ?? created
-		})
-	}
-}
-```
-
-### Transaction notes
-
-- call `await Post.initialize()` first so `Post.table` is ready
-- use `ConnectionManager.get(Post.connection)` to get the same managed connection Morphis uses
-- use `tx.insert`, `tx.update`, `tx.delete`, and `tx.select` inside the transaction callback
-- if you have run `morphis sync:model`, `Post.table` can be backed by the generated schema for stronger typing
-
-## 5. When to use which layer
-
-Use model methods when:
-
-- you are doing straightforward CRUD
-- you want the Morphis key normalization between `camelCase` and `snake_case`
-- you want simple, readable service code
-
-Use raw Drizzle access when:
-
-- you need a transaction
-- you need joins or more custom SQL composition
-- you want direct access to the query builder beyond the built-in model helpers
-
-## Further reading
-
-- [Drizzle query docs](https://orm.drizzle.team/docs/data-querying)
-- [Drizzle select docs](https://orm.drizzle.team/docs/select)
-- [Drizzle insert docs](https://orm.drizzle.team/docs/insert)
-- [Drizzle update docs](https://orm.drizzle.team/docs/update)
-- [Drizzle delete docs](https://orm.drizzle.team/docs/delete)
-- [Drizzle transactions and connection docs](https://orm.drizzle.team/docs/connect-overview)

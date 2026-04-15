@@ -7,7 +7,7 @@ title: Querying and CRUD
 Morphis gives you two layers for database access:
 
 - use `Model` methods for normal application CRUD
-- use the underlying Drizzle instance for more custom queries and transactions
+- use the underlying Drizzle instance for more custom queries when the built-in model helpers are not enough
 
 For most projects, put query logic in a service and let the controller call the service.
 
@@ -155,61 +155,86 @@ This keeps the controller thin. The controller handles HTTP input and output, wh
 
 ## 4. Transaction example in a service
 
-Morphis does not add a separate transaction API on top of Drizzle. When you need a transaction, get the managed connection and use Drizzle's `transaction()` directly.
+Morphis supports explicit transactions directly on the model layer.
 
 Filename: `src/services/PostService.ts`
 
 ```ts
-import { eq } from 'drizzle-orm'
 import { ConnectionManager, NotFoundError } from 'morphis'
+import { AuditLog } from '../models/AuditLog'
 import { Post } from '../models/Post'
 
 export class PostService {
   async createThenRewrite(content: string) {
-    await Post.initialize()
-    const { db } = await ConnectionManager.get(Post.connection)
+    const transaction = await ConnectionManager.getTransaction()
 
-    return db.transaction(async (tx) => {
-      const inserted = await tx
-        .insert(Post.table)
-        .values({ content })
-        .returning()
-
-      const created = inserted[0]
+    try {
+      const created = await Post.create({ content }, transaction)
       if (!created) {
         throw new NotFoundError('Post was not created')
       }
 
-      const updated = await tx
-        .update(Post.table)
-        .set({ content: `${created.content} (rewritten)` })
-        .where(eq(Post.table.id, created.id))
-        .returning()
+      const updated = await Post.update(
+        { content: `${created.content} (rewritten)` },
+        { where: { id: created.id }, transaction },
+      )
+
+      await AuditLog.create(
+        { message: `rewrote post ${created.id}` },
+        { transaction },
+      )
+
+      await transaction.commit()
 
       return updated[0] ?? created
-    })
+    } catch (error) {
+      await transaction.rollback()
+      throw error
+    }
+  }
+
+  async previewDrafts() {
+    const transaction = await ConnectionManager.getTransaction()
+
+    try {
+      await Post.create({ content: 'draft' }, { transaction })
+
+      const rows = await Post.findAll({ transaction })
+      await transaction.commit()
+
+      return rows
+    } catch (error) {
+      await transaction.rollback()
+      throw error
+    }
   }
 }
 ```
 
 ### Transaction notes
 
-- call `await Post.initialize()` first so `Post.table` is ready
-- use `ConnectionManager.get(Post.connection)` to get the same managed connection Morphis uses
-- use `tx.insert`, `tx.update`, `tx.delete`, and `tx.select` inside the transaction callback
-- if you have run `morphis sync:model`, `Post.table` can be backed by the generated schema for stronger typing
+- call `await ConnectionManager.getTransaction()` to get a transaction on the default connection
+- pass a connection name such as `await ConnectionManager.getTransaction('analytics')` when you need a non-default database
+- the same transaction can be reused across multiple Morphis models and tables on that same connection
+- using that transaction with a model on a different connection throws an error
+- finish every transaction with `await transaction.commit()` or `await transaction.rollback()`
+- you can pass the transaction directly, for example `Post.create(data, transaction)`
+- or pass it inside options, for example `Post.findAll({ where: { id: 1 }, transaction })`
+- instance methods also support transactions, for example `await post.update(data, transaction)` and `await post.destroy({ transaction })`
+- `find`, `findAll`, `findOne`, `findByPk`, `create`, `bulkCreate`, `update`, `destroy`, `count`, `findAndCountAll`, and `upsert` all accept transactions
+- explicit transactions are not supported for Cloudflare D1 bindings; local D1 via SQLite storage is supported
 
 ## 5. When to use which layer
 
 Use model methods when:
 
 - you are doing straightforward CRUD
+- you want explicit transaction control with Morphis models
 - you want the Morphis key normalization between `camelCase` and `snake_case`
 - you want simple, readable service code
 
 Use raw Drizzle access when:
 
-- you need a transaction
 - you need joins or more custom SQL composition
 - you want direct access to the query builder beyond the built-in model helpers
 
