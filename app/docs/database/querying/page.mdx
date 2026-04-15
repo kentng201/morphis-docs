@@ -21,9 +21,7 @@ Use a structure like this:
 
 ## 1. Model file
 
-Filename: `src/models/Post.ts`
-
-```ts
+```ts filename="src/models/Post.ts"
 import { Model } from 'morphis'
 import type { ConnectionName } from '../config/database'
 
@@ -41,9 +39,7 @@ This model points to the `posts` table. Because Morphis normalizes application k
 
 ## 2. Query and CRUD in a service
 
-Filename: `src/services/PostService.ts`
-
-```ts
+```ts filename="src/services/PostService.ts"
 import { eq } from 'drizzle-orm'
 import { NotFoundError } from 'morphis'
 import { Post } from '../models/Post'
@@ -99,9 +95,7 @@ export const postService = new PostService()
 
 ## 3. Controller calling the service
 
-Filename: `src/controllers/PostController.ts`
-
-```ts
+```ts filename="src/controllers/PostController.ts"
 import {
   Controller,
   Delete,
@@ -157,9 +151,7 @@ This keeps the controller thin. The controller handles HTTP input and output, wh
 
 Morphis supports explicit transactions directly on the model layer.
 
-Filename: `src/services/PostService.ts`
-
-```ts
+```ts filename="src/services/PostService.ts"
 import { ConnectionManager, NotFoundError } from 'morphis'
 import { AuditLog } from '../models/AuditLog'
 import { Post } from '../models/Post'

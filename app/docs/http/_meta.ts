@@ -3,6 +3,7 @@ export default {
     routing: { title: 'Routing' },
     controllers: { title: 'Controllers' },
     services: { title: 'Services' },
+    'error-handling': { title: 'Error Handling' },
     validation: { title: 'Validation' },
     transformer: { title: 'Transformer' },
     context: { title: 'Context' },

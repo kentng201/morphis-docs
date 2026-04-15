@@ -1,0 +1,241 @@
+---
+title: Error Handling
+---
+
+import { Callout, Tabs } from 'nextra/components'
+
+# Error Handling
+
+Morphis catches errors thrown anywhere in the request pipeline and turns them into HTTP responses.
+
+That includes errors raised in:
+
+- middleware
+- controllers
+- services
+- model and provider calls that bubble upward
+
+The practical rule is simple: throw domain-appropriate errors from the service layer, then let the router normalize them into the final response.
+
+## How Morphis turns errors into responses
+
+At runtime, Morphis does three things:
+
+- normalizes the thrown value into a status code, message, headers, and optional body
+- formats that normalized error into the response payload
+- returns `Response.json(...)` with the resolved status code and headers
+
+The built-in router already wires this up, so if your controller or service throws, you usually do not need to catch the error manually.
+
+<Callout type="info">
+  `ValidationError` is special-cased into a field-error payload, while `HttpError` subclasses such as `NotFoundError` and `ConflictError` default to a simple `{ error: message }` body.
+</Callout>
+
+## Built-in HTTP errors
+
+Morphis exports `HttpError` plus named subclasses for standard HTTP 4xx and 5xx responses.
+
+The full built-in error catalog is:
+
+| Status | Error class | Default code |
+| ---- | ---- | ---- |
+| `400` | `BadRequestError` | `BAD_REQUEST` |
+| `401` | `UnauthorizedError` | `UNAUTHORIZED` |
+| `402` | `PaymentRequiredError` | `PAYMENT_REQUIRED` |
+| `403` | `ForbiddenError` | `FORBIDDEN` |
+| `404` | `NotFoundError` | `NOT_FOUND` |
+| `405` | `MethodNotAllowedError` | `METHOD_NOT_ALLOWED` |
+| `406` | `NotAcceptableError` | `NOT_ACCEPTABLE` |
+| `407` | `ProxyAuthenticationRequiredError` | `PROXY_AUTHENTICATION_REQUIRED` |
+| `408` | `RequestTimeoutError` | `REQUEST_TIMEOUT` |
+| `409` | `ConflictError` | `CONFLICT` |
+| `410` | `GoneError` | `GONE` |
+| `411` | `LengthRequiredError` | `LENGTH_REQUIRED` |
+| `412` | `PreconditionFailedError` | `PRECONDITION_FAILED` |
+| `413` | `PayloadTooLargeError` | `PAYLOAD_TOO_LARGE` |
+| `414` | `UriTooLongError` | `URI_TOO_LONG` |
+| `415` | `UnsupportedMediaTypeError` | `UNSUPPORTED_MEDIA_TYPE` |
+| `416` | `RangeNotSatisfiableError` | `RANGE_NOT_SATISFIABLE` |
+| `417` | `ExpectationFailedError` | `EXPECTATION_FAILED` |
+| `418` | `ImATeapotError` | `IM_A_TEAPOT` |
+| `421` | `MisdirectedRequestError` | `MISDIRECTED_REQUEST` |
+| `422` | `UnprocessableEntityError` | `UNPROCESSABLE_ENTITY` |
+| `423` | `LockedError` | `LOCKED` |
+| `424` | `FailedDependencyError` | `FAILED_DEPENDENCY` |
+| `425` | `TooEarlyError` | `TOO_EARLY` |
+| `426` | `UpgradeRequiredError` | `UPGRADE_REQUIRED` |
+| `428` | `PreconditionRequiredError` | `PRECONDITION_REQUIRED` |
+| `429` | `TooManyRequestsError` | `TOO_MANY_REQUESTS` |
+| `431` | `RequestHeaderFieldsTooLargeError` | `REQUEST_HEADER_FIELDS_TOO_LARGE` |
+| `451` | `UnavailableForLegalReasonsError` | `UNAVAILABLE_FOR_LEGAL_REASONS` |
+| `500` | `InternalServerError` | `INTERNAL_SERVER_ERROR` |
+| `501` | `NotImplementedError` | `NOT_IMPLEMENTED` |
+| `502` | `BadGatewayError` | `BAD_GATEWAY` |
+| `503` | `ServiceUnavailableError` | `SERVICE_UNAVAILABLE` |
+| `504` | `GatewayTimeoutError` | `GATEWAY_TIMEOUT` |
+| `505` | `HttpVersionNotSupportedError` | `HTTP_VERSION_NOT_SUPPORTED` |
+| `506` | `VariantAlsoNegotiatesError` | `VARIANT_ALSO_NEGOTIATES` |
+| `507` | `InsufficientStorageError` | `INSUFFICIENT_STORAGE` |
+| `508` | `LoopDetectedError` | `LOOP_DETECTED` |
+| `510` | `NotExtendedError` | `NOT_EXTENDED` |
+| `511` | `NetworkAuthenticationRequiredError` | `NETWORK_AUTHENTICATION_REQUIRED` |
+
+If you need a status without importing a named class, use `createHttpError(statusCode, message, options)`.
+
+## Prefer throwing from services
+
+Validation belongs in validators, but business rule failures usually belong in services.
+
+For example:
+
+- missing route params or malformed body: validator concern
+- post does not exist: service concern
+- post is already published: service concern
+- current user lacks permission to publish: service concern
+
+That split keeps controllers thin and keeps the business workflow in one place.
+
+## Service-layer example
+
+This is the shape Morphis is designed for: the controller handles HTTP metadata, and the service throws typed errors for domain failures.
+
+```ts filename="src/services/PostService.ts"
+import { ConflictError, NotFoundError, Trace } from 'morphis';
+import { Post } from '../models/Post';
+
+@Trace()
+export class PostService {
+  async publish(postId: number, userId: number) {
+    const post = await Post.findOne({ where: { id: postId } });
+
+    if (!post) {
+      throw new NotFoundError('Post not found');
+    }
+
+    if (post.authorId !== userId) {
+      throw new ConflictError('You cannot publish another author\'s post');
+    }
+
+    if (post.status === 'published') {
+      throw new ConflictError('Post is already published');
+    }
+
+    await post.update({ status: 'published' });
+    return post;
+  }
+}
+
+export const postService = new PostService();
+```
+
+The controller stays small:
+
+```ts filename="src/controllers/PostController.ts"
+import { Controller, Post, Request, current } from 'morphis';
+import { postService } from '../services/PostService';
+
+@Controller('posts')
+export class PostController {
+  @Post(':id/publish')
+  async publish(req: Request) {
+    return postService.publish(Number(req.params.id), Number(current.userId));
+  }
+}
+```
+
+When `postService.publish(...)` throws, Morphis converts the error into the HTTP response automatically.
+
+<Tabs items={['Not found', 'Conflict']}>
+  <Tabs.Tab>
+```json
+{
+  "error": "Post not found"
+}
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```json
+{
+  "error": "Post is already published"
+}
+```
+  </Tabs.Tab>
+</Tabs>
+
+Those responses will carry status codes `404` and `409` respectively.
+
+## Validation errors
+
+Request validation uses `ValidationError` under the hood. Its default response body is field-based rather than message-based.
+
+```json
+{
+  "errors": {
+    "title": ["title is required"],
+    "status": ["status must be one of: draft, published"]
+  }
+}
+```
+
+That is why validation should stay in validators instead of being reimplemented manually in services.
+
+## Custom responses with `HttpError`
+
+If the default `{ error: message }` shape is not enough, you can attach headers, details, or a full custom body.
+
+```ts
+import { HttpError } from 'morphis';
+
+throw new HttpError('Feature is temporarily disabled', {
+  statusCode: 503,
+  code: 'FEATURE_DISABLED',
+  headers: { 'Retry-After': '300' },
+  body: {
+    error: 'Feature is temporarily disabled',
+    code: 'FEATURE_DISABLED',
+    retryAfterSeconds: 300,
+  },
+});
+```
+
+## Custom error formatter
+
+If you want one consistent API error envelope, set a router-level formatter.
+
+```ts filename="src/routes/api.ts"
+import { Router } from 'morphis';
+
+const router = new Router();
+
+router.setErrorFormatter((error, context) => ({
+  statusCode: error.statusCode,
+  headers: error.headers,
+  body: {
+    error: error.expose ? error.message : 'Internal server error',
+    code: error.code,
+    trackId: context.trackId,
+  },
+}));
+
+export default router;
+```
+
+This is especially useful if you want to:
+
+- hide raw `500` messages in production
+- include a stable machine-readable `code`
+- attach `trackId` for support and debugging
+- keep every error response in one JSON shape
+
+## Important behavior note
+
+Unexpected plain `Error` objects are currently normalized as `500` responses using the error's message by default.
+
+If you do not want internal messages exposed for untyped exceptions, install a custom error formatter and return a generic fallback for server errors.
+
+## Related pages
+
+- [Services](/docs/http/services)
+- [Controllers](/docs/http/controllers)
+- [Validation](/docs/http/validation)
+- [Context](/docs/http/context)

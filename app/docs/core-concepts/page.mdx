@@ -13,21 +13,28 @@ That is not just a documentation abstraction. The core pieces in Morphis are lit
 The actual flow in the source looks like this:
 
 ```mermaid
-flowchart LR
-		A[Request init] --> B[Request Context init]
-		B --> C[Route match]
-		C --> D
+flowchart TB
+    %% Request init (horizontal inside)
+    subgraph Req[Request init]
+        direction LR
+        A[Request init] --> B[Request Context init]
+    end
 
-		subgraph D[Middleware stack]
-				E[- Cors]
-				F[- Track]
-				G[- Logger]
-				H[- Controller handler]
-				I[- Transform]
-				E --> F --> G --> H --> I
-		end
+    %% Middleware stack (horizontal chain)
+    subgraph Mid[Middleware stack]
+        direction LR
+        C[Match controller or handler] --> E[Cors] --> F[Track] --> G[Logger] --> H[Handler] --> I[Transform]
+    end
 
-		I --> J[Output]
+    %% Output
+    subgraph Out[Output]
+        direction LR
+        J[Response]
+    end
+
+    %% Vertical flow between sections
+    B --> C
+    I --> J
 ```
 
 Use that diagram as the initial mental model, with one important detail: the exact order depends on how you register middleware in `router.use([...])` and which decorators you attach to the matched handler.
@@ -57,7 +64,7 @@ That is why Morphis feels plug-and-play in route setup. You are not switching be
 
 The route file usually stays small and declarative:
 
-```ts
+```ts filename="src/routes/api.ts"
 import { Cors, Logger, Router, Track } from 'morphis';
 import { PostController } from '../controllers/PostController';
 

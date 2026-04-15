@@ -15,7 +15,7 @@ Morphis resolves the `default` connection like this:
 
 Use `defineDatabases` so your connection names stay typed.
 
-```ts
+```ts filename="src/config/database.ts"
 import { defineDatabases, type DatabaseName } from 'morphis'
 
 const databases = defineDatabases({
