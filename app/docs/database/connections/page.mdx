@@ -4,20 +4,231 @@ title: Connections
 
 # Connections
 
-Database connections are configured per project and can be selected explicitly for specific workloads.
+Database connections are defined in `src/config/database.ts`. Each connection needs a `driver` plus the driver-specific `connection` fields.
+
+Morphis resolves the `default` connection like this:
+
+- the entry with `isDefault: true`, or
+- the first connection in the exported object
+
+## File shape
+
+Use `defineDatabases` so your connection names stay typed.
+
+```ts
+import { defineDatabases, type DatabaseName } from 'morphis'
+
+const databases = defineDatabases({
+	default: {
+		isDefault: true,
+		driver: 'sqlite',
+		connection: {
+			storage: './database.sqlite',
+		},
+	},
+})
+
+export type ConnectionName = DatabaseName<typeof databases>
+
+export default databases
+```
+
+## Required config by driver
+
+### Postgres
+
+```ts
+import { defineDatabases } from 'morphis'
+
+export default defineDatabases({
+	default: {
+		isDefault: true,
+		driver: 'postgres',
+		connection: {
+			host: process.env.DB_HOST || '127.0.0.1',
+			port: Number(process.env.DB_PORT || 5432),
+			database: process.env.DB_NAME || 'app',
+			username: process.env.DB_USERNAME || 'postgres',
+			password: process.env.DB_PASSWORD || '',
+		},
+	},
+})
+```
+
+Needs:
+
+- `host`
+- `port` optional but recommended
+- `database`
+- `username`
+- `password`
+
+### MySQL
+
+```ts
+import { defineDatabases } from 'morphis'
+
+export default defineDatabases({
+	default: {
+		isDefault: true,
+		driver: 'mysql',
+		connection: {
+			host: process.env.DB_HOST || '127.0.0.1',
+			port: Number(process.env.DB_PORT || 3306),
+			database: process.env.DB_NAME || 'app',
+			username: process.env.DB_USERNAME || 'root',
+			password: process.env.DB_PASSWORD || '',
+		},
+	},
+})
+```
+
+Needs the same fields as Postgres.
+
+### MariaDB
+
+```ts
+import { defineDatabases } from 'morphis'
+
+export default defineDatabases({
+	default: {
+		isDefault: true,
+		driver: 'mariadb',
+		connection: {
+			host: process.env.DB_HOST || '127.0.0.1',
+			port: Number(process.env.DB_PORT || 3306),
+			database: process.env.DB_NAME || 'app',
+			username: process.env.DB_USERNAME || 'root',
+			password: process.env.DB_PASSWORD || '',
+		},
+	},
+})
+```
+
+### MSSQL
+
+```ts
+import { defineDatabases } from 'morphis'
+
+export default defineDatabases({
+	default: {
+		isDefault: true,
+		driver: 'mssql',
+		connection: {
+			host: process.env.DB_HOST || '127.0.0.1',
+			port: Number(process.env.DB_PORT || 1433),
+			database: process.env.DB_NAME || 'app',
+			username: process.env.DB_USERNAME || 'sa',
+			password: process.env.DB_PASSWORD || '',
+		},
+	},
+})
+```
+
+### SQLite
+
+```ts
+import { defineDatabases } from 'morphis'
+
+export default defineDatabases({
+	default: {
+		isDefault: true,
+		driver: 'sqlite',
+		connection: {
+			storage: process.env.DB_STORAGE || './database.sqlite',
+		},
+	},
+})
+```
+
+Needs:
+
+- `storage`: local SQLite file path
+
+### D1
+
+This is the most important one to configure correctly because it has both a Cloudflare runtime mode and a local Bun fallback mode.
+
+```ts
+import { defineDatabases, type DatabaseName } from 'morphis'
+
+const localStorage = process.env.DB_STORAGE || './database.sqlite'
+const binding = process.env.CLOUDFLARE_D1_BINDING || process.env.D1_BINDING || 'DB'
+
+const databases = defineDatabases({
+	default: {
+		isDefault: true,
+		driver: 'd1',
+		connection: {
+			// Remote Cloudflare Worker uses the D1 binding.
+			binding,
+			// Local Bun development falls back to the SQLite file.
+			storage: localStorage,
+		},
+	},
+})
+
+export type ConnectionName = DatabaseName<typeof databases>
+
+export default databases
+```
+
+Needs:
+
+- `binding` for Cloudflare runtime access
+- `storage` for local Bun development and local migration support
+
+Optional at runtime:
+
+- `database` if you inject a D1 object directly instead of resolving a binding
+
+## How D1 resolution works
+
+For a `d1` connection, Morphis resolves the database in this order:
+
+1. `connection.database`
+2. a global runtime binding matching `connection.binding`
+3. `connection.storage` as a local SQLite fallback when running under Bun
+
+If you deploy to Cloudflare and the binding is missing, the connection will fail at runtime.
 
 ## D1 support
 
 Morphis resolves a D1 database from a direct connection object, a named runtime binding, or a local storage fallback when running under Bun.
 
-## Connection examples
+## Cloudflare D1 deployment
 
-Typical settings include:
+When Morphis detects a D1 connection during Cloudflare deployment, it deploys as a Worker so the D1 binding is available at runtime.
 
-- `host`, `port`, `database`, `username`, `password` for SQL servers
-- `storage` for SQLite-style local files
-- `binding` for Cloudflare D1 runtime access
+To link the deployed Worker to the remote D1 database, make sure these values are available in your env file or CLI flags:
+
+- `CLOUDFLARE_D1_BINDING` or `D1_BINDING`
+- `CLOUDFLARE_D1_DATABASE_NAME` or `D1_DATABASE_NAME`
+- `CLOUDFLARE_D1_DATABASE_ID` or `D1_DATABASE_ID`
+
+Example env values:
+
+```env
+CLOUDFLARE_D1_BINDING=DB
+CLOUDFLARE_D1_DATABASE_NAME=my-production-db
+CLOUDFLARE_D1_DATABASE_ID=12345678-1234-1234-1234-123456789abc
+DB_STORAGE=./database.sqlite
+```
+
+Example deploy command:
+
+```bash
+morphis deploy --target=cloudflare --server=api
+```
+
+Or pass the remote database identifiers directly:
+
+```bash
+morphis deploy --target=cloudflare --server=api --d1-binding=DB --d1-name=my-production-db --d1-id=12345678-1234-1234-1234-123456789abc
+```
+
+During deployment, Morphis generates a temporary Wrangler config with a `[[d1_databases]]` block that links the Worker binding to the remote D1 database. The binding name must match the one your `src/config/database.ts` expects.
 
 ## Good practice
 
-Keep the default connection stable and use named connections only when you truly need separation between workloads.
+Keep the default connection stable, keep local and remote D1 settings in the same connection definition, and only add extra named connections when you really need separate databases.

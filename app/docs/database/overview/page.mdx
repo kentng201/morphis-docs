@@ -6,21 +6,62 @@ title: Database Overview
 
 Morphis provides a shared model layer with connection management and Drizzle-powered database support.
 
+If you want deeper low-level ORM details, start with the [Drizzle ORM overview](https://orm.drizzle.team/docs/overview).
+
 ## Supported drivers
 
-- D1
-- SQLite
-- PostgreSQL
-- MySQL
-- MariaDB
-- Microsoft SQL Server
+- D1: [Morphis D1 connection flow](/docs/database/connections) and [Drizzle Cloudflare D1 guide](https://orm.drizzle.team/docs/connect-cloudflare-d1)
+- SQLite: [Morphis SQLite connection flow](/docs/database/connections) and [Drizzle SQLite guide](https://orm.drizzle.team/docs/get-started-sqlite)
+- PostgreSQL: [Morphis PostgreSQL connection flow](/docs/database/connections) and [Drizzle PostgreSQL guide](https://orm.drizzle.team/docs/get-started-postgresql)
+- MySQL: [Morphis MySQL connection flow](/docs/database/connections) and [Drizzle MySQL guide](https://orm.drizzle.team/docs/get-started-mysql)
+- MariaDB: [Morphis MariaDB connection flow](/docs/database/connections) and [Drizzle MySQL guide](https://orm.drizzle.team/docs/get-started-mysql)
+- Microsoft SQL Server: [Morphis MSSQL connection flow](/docs/database/connections) and [Drizzle MSSQL guide](https://orm.drizzle.team/docs/get-started-mssql)
 
 ## Core idea
 
 A model declares its table and connection, while the framework handles the underlying query builder and runtime driver selection.
 
+For most application code, use Morphis model methods such as `findAll`, `findOne`, `findByPk`, `create`, `update`, and `destroy`. When you need lower-level query composition or transactions, use the underlying Drizzle instance that Morphis manages for the connection.
+
 ## Where to continue
 
+- [Querying and CRUD](/docs/database/querying)
 - [Connections](/docs/database/connections)
 - [Models](/docs/database/models)
 - [Migrations](/docs/database/migrations)
+
+			return updated[0] ?? created
+		})
+	}
+}
+```
+
+### Transaction notes
+
+- call `await Post.initialize()` first so `Post.table` is ready
+- use `ConnectionManager.get(Post.connection)` to get the same managed connection Morphis uses
+- use `tx.insert`, `tx.update`, `tx.delete`, and `tx.select` inside the transaction callback
+- if you have run `morphis sync:model`, `Post.table` can be backed by the generated schema for stronger typing
+
+## 5. When to use which layer
+
+Use model methods when:
+
+- you are doing straightforward CRUD
+- you want the Morphis key normalization between `camelCase` and `snake_case`
+- you want simple, readable service code
+
+Use raw Drizzle access when:
+
+- you need a transaction
+- you need joins or more custom SQL composition
+- you want direct access to the query builder beyond the built-in model helpers
+
+## Further reading
+
+- [Drizzle query docs](https://orm.drizzle.team/docs/data-querying)
+- [Drizzle select docs](https://orm.drizzle.team/docs/select)
+- [Drizzle insert docs](https://orm.drizzle.team/docs/insert)
+- [Drizzle update docs](https://orm.drizzle.team/docs/update)
+- [Drizzle delete docs](https://orm.drizzle.team/docs/delete)
+- [Drizzle transactions and connection docs](https://orm.drizzle.team/docs/connect-overview)

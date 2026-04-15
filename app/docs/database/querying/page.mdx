@@ -1,0 +1,223 @@
+---
+title: Querying and CRUD
+---
+
+# Querying and CRUD
+
+Morphis gives you two layers for database access:
+
+- use `Model` methods for normal application CRUD
+- use the underlying Drizzle instance for more custom queries and transactions
+
+For most projects, put query logic in a service and let the controller call the service.
+
+## Example filenames
+
+Use a structure like this:
+
+- `src/models/Post.ts`
+- `src/services/PostService.ts`
+- `src/controllers/PostController.ts`
+
+## 1. Model file
+
+Filename: `src/models/Post.ts`
+
+```ts
+import { Model } from 'morphis'
+import type { ConnectionName } from '../config/database'
+
+export class Post extends Model {
+  static connection: ConnectionName = 'default'
+  static tableName = 'posts'
+
+  declare id: number
+  declare content: string
+  declare createdAt: string
+}
+```
+
+This model points to the `posts` table. Because Morphis normalizes application keys, your code can use `createdAt` while the database column stays `created_at`.
+
+## 2. Query and CRUD in a service
+
+Filename: `src/services/PostService.ts`
+
+```ts
+import { eq } from 'drizzle-orm'
+import { NotFoundError } from 'morphis'
+import { Post } from '../models/Post'
+
+export class PostService {
+  async list(limit = 20, offset = 0) {
+    return Post.findAll({ limit, offset })
+  }
+
+  async get(id: number) {
+    const post = await Post.findByPk(id)
+    if (!post) {
+      throw new NotFoundError('Post not found')
+    }
+    return post
+  }
+
+  async create(input: { content: string }) {
+    return Post.create(input)
+  }
+
+  async update(id: number, input: { content: string }) {
+    const post = await this.get(id)
+    await post.update(input)
+    return post
+  }
+
+  async remove(id: number) {
+    const post = await this.get(id)
+    await post.destroy()
+    return post
+  }
+
+  async findWithDrizzle(id: number) {
+    await Post.initialize()
+    const query = await Post.find()
+    const rows = await query.where(eq(Post.table.id, id)).limit(1)
+    return rows[0] ?? null
+  }
+}
+
+export const postService = new PostService()
+```
+
+### What each method is doing
+
+- `Post.findAll()` reads many rows
+- `Post.findByPk()` reads one row by primary key
+- `Post.create()` inserts one row
+- `post.update()` updates the current row instance
+- `post.destroy()` deletes the current row instance
+- `Post.find()` gives you a raw Drizzle query builder for advanced filtering and joins
+
+## 3. Controller calling the service
+
+Filename: `src/controllers/PostController.ts`
+
+```ts
+import {
+  Controller,
+  Delete,
+  Get,
+  NotFoundError,
+  Post as HttpPost,
+  Put,
+  Request,
+} from 'morphis'
+import { postService } from '../services/PostService'
+
+@Controller('posts')
+export class PostController {
+  @Get()
+  async list(req: Request) {
+    const limit = Number(req.query.limit ?? 20)
+    const offset = Number(req.query.offset ?? 0)
+    return postService.list(limit, offset)
+  }
+
+  @Get(':id')
+  async get(req: Request) {
+    const id = Number(req.params.id)
+    if (!Number.isFinite(id)) {
+      throw new NotFoundError('Post not found')
+    }
+    return postService.get(id)
+  }
+
+  @HttpPost()
+  async create(req: Request) {
+    return postService.create(req.body as { content: string })
+  }
+
+  @Put(':id')
+  async update(req: Request) {
+    return postService.update(
+      Number(req.params.id),
+      req.body as { content: string },
+    )
+  }
+
+  @Delete(':id')
+  async remove(req: Request) {
+    return postService.remove(Number(req.params.id))
+  }
+}
+```
+
+This keeps the controller thin. The controller handles HTTP input and output, while the service owns the database logic.
+
+## 4. Transaction example in a service
+
+Morphis does not add a separate transaction API on top of Drizzle. When you need a transaction, get the managed connection and use Drizzle's `transaction()` directly.
+
+Filename: `src/services/PostService.ts`
+
+```ts
+import { eq } from 'drizzle-orm'
+import { ConnectionManager, NotFoundError } from 'morphis'
+import { Post } from '../models/Post'
+
+export class PostService {
+  async createThenRewrite(content: string) {
+    await Post.initialize()
+    const { db } = await ConnectionManager.get(Post.connection)
+
+    return db.transaction(async (tx) => {
+      const inserted = await tx
+        .insert(Post.table)
+        .values({ content })
+        .returning()
+
+      const created = inserted[0]
+      if (!created) {
+        throw new NotFoundError('Post was not created')
+      }
+
+      const updated = await tx
+        .update(Post.table)
+        .set({ content: `${created.content} (rewritten)` })
+        .where(eq(Post.table.id, created.id))
+        .returning()
+
+      return updated[0] ?? created
+    })
+  }
+}
+```
+
+### Transaction notes
+
+- call `await Post.initialize()` first so `Post.table` is ready
+- use `ConnectionManager.get(Post.connection)` to get the same managed connection Morphis uses
+- use `tx.insert`, `tx.update`, `tx.delete`, and `tx.select` inside the transaction callback
+- if you have run `morphis sync:model`, `Post.table` can be backed by the generated schema for stronger typing
+
+## 5. When to use which layer
+
+Use model methods when:
+
+- you are doing straightforward CRUD
+- you want the Morphis key normalization between `camelCase` and `snake_case`
+- you want simple, readable service code
+
+Use raw Drizzle access when:
+
+- you need a transaction
+- you need joins or more custom SQL composition
+- you want direct access to the query builder beyond the built-in model helpers
+
+## Further reading
+
+- [Drizzle query docs](https://orm.drizzle.team/docs/data-querying)
+- [Drizzle select docs](https://orm.drizzle.team/docs/select)
+- [Drizzle insert docs](https://orm.drizzle.team/docs/insert)
+- [Drizzle update docs](https://orm.drizzle.team/docs/update)
+- [Drizzle delete docs](https://orm.drizzle.team/docs/delete)
+- [Drizzle transactions and connection docs](https://orm.drizzle.team/docs/connect-overview)

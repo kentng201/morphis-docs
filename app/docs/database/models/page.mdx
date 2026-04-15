@@ -2,28 +2,106 @@
 title: Models
 ---
 
-# Models
+# Database Models
 
-Morphis models extend a shared base class and give you a consistent place for table metadata and query access.
+Morphis models are a thin application-layer wrapper on top of your database table. They define which connection to use, which table to read from, and give you a consistent query API.
 
-## Example
+## Naming convention
+
+Morphis expects your database schema to stay database-friendly:
+
+- table names should be `snake_case` and usually plural
+- column names should be `snake_case`
+- model class names should be `PascalCase`
+- application code can keep using `camelCase`
+
+If you do not set `static tableName`, Morphis infers it from the class name as:
+
+- `User` -> `users`
+- `BlogPost` -> `blog_posts`
+- `CompanyCategory` -> `company_categories`
+
+That means the recommended pattern is:
 
 ```ts
 import { Model } from 'morphis'
 
-export class Post extends Model {
+export class BlogPost extends Model {
   static connection = 'default'
-  static tableName = 'posts'
 }
 ```
 
-## Built-in behavior
+and the matching table in SQL should be:
 
-- camelCase to snake_case field normalization
-- database row mapping back into application-friendly keys
-- shared query entry points such as select, insert, update, and delete
-- schema introspection for supported drivers
+```sql
+CREATE TABLE blog_posts (
+  id INTEGER PRIMARY KEY,
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+## Application-layer normalization
+
+Morphis automatically normalizes keys between your application layer and the database layer:
+
+- input like `createdAt` can map to a column named `created_at`
+- rows returned from the database are mapped back to `camelCase` where possible
+- plain object `where` clauses such as `{ createdAt: '...' }` are normalized to the real column
+
+Example:
+
+```ts
+await BlogPost.create({
+  title: 'First post',
+  createdAt: new Date().toISOString(),
+})
+```
+
+Even if the actual column is `created_at`, the model layer will resolve it for you.
+
+## When to set `tableName`
+
+Set `static tableName` only when the inferred name is not the real table name.
+
+```ts
+import { Model } from 'morphis'
+
+export class Person extends Model {
+  static connection = 'default'
+  static tableName = 'users'
+}
+```
+
+## Full example
+
+```ts
+import { Model } from 'morphis'
+
+export class User extends Model {
+  static connection = 'default'
+}
+
+const user = await User.create({
+  firstName: 'Kent',
+  lastName: 'Ng',
+})
+
+const rows = await User.findAll({
+  where: { firstName: 'Kent' },
+})
+```
+
+With a database schema like:
+
+```sql
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL
+);
+```
 
 ## Recommendation
 
-Keep domain logic in services and let models focus on persistence.
+Keep the database schema in `snake_case`, keep your TypeScript in `camelCase`, and let Morphis handle the mapping. That is the convention the model layer is built around.

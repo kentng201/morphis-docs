@@ -4,13 +4,49 @@ title: Migrations
 
 # Migrations
 
-Morphis stores SQL migrations by connection and applies them through the CLI.
+Morphis uses plain `.sql` migrations, grouped by connection name, and applies them through the CLI.
 
 ## Create a migration
 
 ```bash
 morphis new:migration create-posts-table
 ```
+
+This creates a timestamped file inside the selected connection folder:
+
+```text
+migrations/default/20260415093000-create-posts-table.sql
+```
+
+If you target a non-default connection:
+
+```bash
+morphis new:migration create-posts-table --connection=analytics
+```
+
+Morphis will create the file under `migrations/analytics/`.
+
+## Write the SQL directly
+
+Morphis does not generate table definitions for you here. The migration file should contain the exact SQL you want to run.
+
+Example:
+
+```sql
+CREATE TABLE users (
+	id INTEGER PRIMARY KEY,
+	first_name TEXT NOT NULL,
+	last_name TEXT NOT NULL,
+	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+Keep the schema simple and explicit:
+
+- use `snake_case` table names
+- use `snake_case` column names
+- create the actual database defaults in SQL
+- add indexes and constraints here, not in the model class
 
 ## Run pending migrations
 
@@ -19,8 +55,94 @@ morphis migrate
 morphis migrate --connection=default
 ```
 
-## Notes
+When Morphis runs migrations locally, it:
 
-- migrations live in folders such as `migrations/default`
-- D1 can be applied remotely through Wrangler-backed workflows
-- local Bun execution can apply SQL directly against the configured database
+- reads files from `migrations/<connection-name>/`
+- creates a `migrations` tracking table if it does not exist yet
+- runs pending `.sql` files in filename order
+- records each applied filename in the `migrations` table
+
+## Multiple statements in one file
+
+You can place more than one SQL statement in the same migration file.
+
+```sql
+CREATE TABLE users (
+	id INTEGER PRIMARY KEY,
+	email TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX users_email_unique ON users(email);
+```
+
+If you are using Drizzle-style SQL output, Morphis also understands `--> statement-breakpoint` separators.
+
+```sql
+CREATE TABLE users (
+	id INTEGER PRIMARY KEY,
+	email TEXT NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX users_email_unique ON users(email);
+```
+
+## Supported drivers
+
+The built-in SQL migration flow supports:
+
+- `mysql`
+- `mariadb`
+- `postgres`
+- `mssql`
+- `sqlite`
+- `d1`
+
+## D1 behavior
+
+There are two distinct D1 migration paths:
+
+### Local Bun migration
+
+Running `morphis migrate` against a `d1` connection uses the local SQLite fallback defined in `connection.storage`.
+
+That means this must exist in your D1 connection config:
+
+```ts
+connection: {
+	binding: 'DB',
+	storage: './database.sqlite',
+}
+```
+
+Without `storage`, local Bun migration cannot run.
+
+### Remote Cloudflare migration during deploy
+
+When deploying to Cloudflare with a D1 connection, Morphis does not use the local SQLite fallback. It switches to Wrangler's native D1 migration engine and applies the files remotely.
+
+For that path, Morphis needs:
+
+- `CLOUDFLARE_D1_DATABASE_NAME`
+- `CLOUDFLARE_D1_DATABASE_ID`
+- `CLOUDFLARE_D1_BINDING` or `D1_BINDING`
+
+You can also pass the database name and id directly:
+
+```bash
+morphis deploy --target=cloudflare --server=api --d1-name=my-db --d1-id=<database-id>
+```
+
+## Things to remember
+
+- Morphis does not provide automatic rollback for partially applied migrations
+- any migration error aborts the deploy or CLI run
+- keep migrations additive and review them carefully before running in production
+- for D1 on Cloudflare, make sure the binding name in deployment matches the binding name expected by your connection config
+
+## Recommended workflow
+
+1. Create the table or column changes in SQL.
+2. Keep table and column names in `snake_case`.
+3. Run `morphis migrate` locally.
+4. Point your model class at that table.
+5. For D1 production deploys, ensure the Cloudflare database name, id, and binding are configured before running `morphis deploy`.

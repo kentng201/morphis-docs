@@ -40,7 +40,7 @@ export default async function RootLayout({
             </Head>
             <body>
                 <Layout
-                    banner={banner}
+                    banner={<></>}
                     navbar={navbar}
                     pageMap={await getPageMap()}
                     docsRepositoryBase="https://github.com/kentng201/morphis/tree/development"
