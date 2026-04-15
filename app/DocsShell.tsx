@@ -19,7 +19,7 @@ export default async function DocsShell({
             banner={<></>}
             navbar={navbar}
             pageMap={await getPageMap()}
-            docsRepositoryBase="https://github.com/kentng201/morphis/tree/development"
+            docsRepositoryBase="https://github.com/kentng201/morphis-docs/tree/master"
             footer={footer}
             editLink="Edit this page on GitHub"
             sidebar={{ defaultMenuCollapseLevel: 1 }}
