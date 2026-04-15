@@ -181,7 +181,57 @@ Click **Test Request** to open the interactive panel. The form is pre-populated 
 
 ---
 
-## Preview flags reference
+## Testing against a remote server
+
+By default, Scalar points requests at `http://localhost:3000` (the value of `PORT` in your `.env.api`). To test a staging or production server, set `HOST` — or one of the more specific overrides — in the same env file.
+
+### Using `HOST`
+
+```ini filename=".env.api"
+NAME=api
+PORT=3000
+MULTI_THREAD=true
+
+HOST=api.example.com
+```
+
+Morphis builds the server URL as `http://<HOST>:<PORT>`, so the above produces `http://api.example.com:3000`. To use HTTPS and omit the port, add `PROTOCOL` and leave `PORT` blank (or set `EXPOSE_PORT`):
+
+```ini filename=".env.api (HTTPS remote)"
+NAME=api
+PORT=443
+MULTI_THREAD=true
+
+HOST=api.example.com
+PROTOCOL=https
+```
+
+This produces `https://api.example.com`.
+
+### Using `EXPOSE_URL` (full URL override)
+
+For the simplest override, set a complete URL — this takes priority over all other variables:
+
+```ini filename=".env.api"
+EXPOSE_URL=https://api.example.com/v1
+```
+
+### Variable priority
+
+Morphis resolves the OpenAPI `servers[].url` in this order — first match wins:
+
+| Priority | Variable | Example |
+|----------|----------|---------|
+| 1 | `EXPOSE_URL` | `https://api.example.com/v1` |
+| 2 | `APP_URL` / `BASE_URL` / `PUBLIC_URL` / `SERVER_URL` / `API_URL` | `https://api.example.com` |
+| 3 | `EXPOSE_HOST` or `HOST` + `EXPOSE_PORT` or `PORT` + `EXPOSE_PROTOCOL` or `PROTOCOL` / `HTTPS` | pieces assembled |
+| 4 | _(default)_ | `http://localhost:3000` |
+
+<Callout type="tip">
+  When pointing Scalar at a remote server, re-run `morphis route:list` (or restart the preview with `--watch`) so the server URL in the UI reflects the updated env file.
+</Callout>
+
+---
 
 | Flag | Default | Description |
 |------|---------|-------------|
