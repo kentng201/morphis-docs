@@ -103,16 +103,29 @@ code:not(pre code) {
   background: var(--morphis-surface-strong);
 }
 
-pre,
 article img,
-article video,
-article table {
+article video {
   border-radius: 1rem;
 }
 
+article table {
+  border-radius: 0;
+}
+
 pre {
+  border-radius: 1rem;
   border: 1px solid var(--morphis-border);
   box-shadow: var(--morphis-shadow);
+}
+
+.nextra-code > div + pre {
+  border: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.dark .nextra-code > div:first-child {
+  border-bottom: 1px solid rgba(211, 181, 141, 0.18);
 }
 
 nav,
@@ -133,6 +146,17 @@ article blockquote {
 .nextra-sidebar li.active > :is(a, button),
 .nextra-sidebar :is(a, button)[aria-current] {
   color: var(--morphis-sidebar-active-text);
+}
+
+.docs-footer-link {
+  color: var(--x-color-primary-600);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.docs-footer-link:hover {
+  color: var(--x-color-primary-700);
 }
 
 .landing-shell {
@@ -173,8 +197,8 @@ article blockquote {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1.5rem;
-  padding: 0.75rem 0 2.5rem;
+  gap: 1.1rem;
+  padding: 0.25rem 0 1.75rem;
 }
 
 .landing-brand {
@@ -186,18 +210,18 @@ article blockquote {
 }
 
 .landing-brand-mark {
-  width: 2.1rem;
-  height: 2.1rem;
+  width: 1.8rem;
+  height: 1.8rem;
   border-radius: 999px 999px 999px 0.45rem;
   background:
     radial-gradient(circle at 30% 30%, rgba(246, 246, 244, 0.7), transparent 38%),
     linear-gradient(135deg, var(--morphis-bark), var(--morphis-ink));
-  box-shadow: 0 12px 24px rgba(46, 37, 30, 0.18);
+  box-shadow: 0 10px 20px rgba(46, 37, 30, 0.16);
 }
 
 .landing-brand-wordmark {
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(1.6rem, 1.2rem + 1vw, 2rem);
+  font-size: clamp(1.35rem, 1.05rem + 0.7vw, 1.7rem);
   font-weight: 700;
   letter-spacing: -0.04em;
 }
@@ -205,9 +229,10 @@ article blockquote {
 .landing-nav-links {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.15rem;
   flex-wrap: wrap;
   justify-content: center;
+  font-size: 0.95rem;
 }
 
 .landing-nav-links a,
@@ -225,8 +250,8 @@ article blockquote {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.45rem;
+  height: 2.45rem;
   border-radius: 999px;
   border: 1px solid var(--morphis-border);
   background: rgba(246, 246, 244, 0.72);
@@ -240,26 +265,26 @@ article blockquote {
 }
 
 .landing-github svg {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .landing-nav-controls {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.55rem;
 }
 
 .landing-theme-toggle {
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.45rem 0.95rem 0.45rem 0.75rem;
+  padding: 0.38rem 0.78rem 0.38rem 0.62rem;
   border-radius: 999px;
   border: 1px solid var(--morphis-border);
   background: rgba(246, 246, 244, 0.72);
   color: var(--morphis-bark);
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
   backdrop-filter: blur(16px);
