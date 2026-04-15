@@ -1,0 +1,159 @@
+---
+title: Context
+---
+
+import { Callout } from 'nextra/components'
+
+# Context
+
+Morphis creates a fresh request context for every incoming request. You access it through the `current` variable.
+
+That context is unique per request, so values you attach during one request do not leak into another request. This makes it the right place for request-scoped data such as `userId`, `permissions`, tenant information, resolved database connections, trace state, or any other values you want to carry through the request lifecycle.
+
+## What `current` is
+
+Internally, Morphis uses async local storage and wraps each request in `runWithContext()` inside the router. In application code, that means you can read or write `current` from middleware, controllers, services, and model-adjacent logic during the same request.
+
+```ts
+import { current } from 'morphis';
+
+current.userId = 123;
+current.permissions = ['posts.read', 'posts.write'];
+```
+
+Because the context is request-local, later code in the same request can read those values safely:
+
+```ts
+import { current } from 'morphis';
+
+if (!current.permissions?.includes('posts.write')) {
+  throw new Error('Forbidden');
+}
+```
+
+<Callout type="info">
+  `current` only works during a live request. Accessing it outside the request lifecycle throws an error.
+</Callout>
+
+## Typical use cases
+
+- `userId` set by authentication middleware
+- `permissions` or role data resolved from a token or session
+- tenant or workspace identifiers
+- request tracing data such as `trackId`
+- resolved database handles via `current.db`
+
+## Built-in context fields
+
+Morphis already uses the context for a few framework-level values:
+
+- `current.trackId` is populated by `TrackMiddleware`
+- `current.path` is populated by `LoggerMiddleware`
+- `current.trace` stores the active call trace
+- `current.db[name]` is populated by `Connect(name)` when a database connection is resolved
+
+These are normal context fields. Your own application data can live next to them.
+
+## Add your own fields
+
+At runtime, you can attach extra properties to the context at any point during the request lifecycle.
+
+For type-safe editor support, extend the `Context` interface in your app.
+
+If your project was created with the Morphis CLI, the usual place is `src/types/Context.d.ts`:
+
+```ts filename="src/types/Context.d.ts"
+declare module 'morphis' {
+  interface Context {
+    userId?: number;
+    permissions?: string[];
+  }
+}
+```
+
+After that, `current.userId` and `current.permissions` are typed everywhere in your project.
+
+## Example: attach data in middleware
+
+Authentication or authorization middleware is the most common place to enrich the context.
+
+```ts
+import { Middleware, current, type Request } from 'morphis';
+
+export class AuthMiddleware extends Middleware {
+  async handler(req: Request, next: (req: Request) => Promise<unknown>) {
+    const user = await authenticate(req);
+
+    current.userId = user.id;
+    current.permissions = user.permissions;
+
+    return next(req);
+  }
+}
+```
+
+Later in a controller or service, those values are still available for the same request:
+
+```ts
+import { current } from 'morphis';
+
+export class PostService {
+  async createPost(data: unknown) {
+    if (!current.permissions?.includes('posts.write')) {
+      throw new Error('Forbidden');
+    }
+
+    return {
+      createdBy: current.userId,
+      data,
+    };
+  }
+}
+```
+
+## When to use `setContextFactory()`
+
+Most projects only need module augmentation so TypeScript knows about custom fields.
+
+Use `setContextFactory()` when you want each request to start from a custom `Context` subclass, usually because you need constructor logic or default values.
+
+```ts filename="src/AppContext.ts"
+import { Context, setContextFactory } from 'morphis';
+
+export class AppContext extends Context {
+  userId?: number;
+  permissions: string[] = [];
+}
+
+setContextFactory(() => new AppContext());
+```
+
+If you need subclass-specific typing directly, use `useContext()`:
+
+```ts
+import { useContext } from 'morphis';
+import { AppContext } from './AppContext';
+
+const ctx = useContext<AppContext>();
+ctx.permissions.push('posts.read');
+```
+
+## Request lifecycle behavior
+
+The key rule is simple: the context is created once per request, shared throughout that request, and discarded when the request finishes.
+
+That means you are free to attach application-specific data during the lifecycle, and anything that reads `current` later in the same request sees the same request-local values.
+
+This is why context is the right fit for values such as:
+
+- authenticated user identity
+- permission arrays
+- tenant selection
+- feature flags resolved for the current request
+- request-local services or helpers
+
+## Related pages
+
+- [Routing](/docs/http/routing)
+- [Middleware](/docs/http/middleware)
+- [Controllers](/docs/http/controllers)
